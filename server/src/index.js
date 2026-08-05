@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import connectDB from './config/db.js';
 
 dotenv.config();
 
@@ -30,7 +31,11 @@ app.get('/', (req, res) => {
   res.send('HeatVision API Server');
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`[server]: Server is running at http://localhost:${PORT}`);
+// Connect DB and then start server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`[server]: Server is running at http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('[database]: Failed to connect to MongoDB', err);
 });
