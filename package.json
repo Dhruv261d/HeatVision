@@ -1,0 +1,11 @@
+{
+  "name": "heatvision-monorepo",
+  "version": "1.0.0",
+  "description": "HeatVision: Spatial analytics and multi-camera heatmaps using MERN & Python CV",
+  "private": true,
+  "scripts": {
+    "start:server": "npm --prefix server start",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  }
+}
