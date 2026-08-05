@@ -7,11 +7,11 @@ Welcome to the HeatVision repository! To maintain clean code and seamless collab
 ## 1. Directory Structure
 
 HeatVision/
-├── client/         # React + Vite frontend
-├── server/         # Express.js + Node.js backend API
-├── cv_service/     # Python / OpenCV computer vision service
-├── data/           # Local sample video clips, blueprints, and POS CSVs
-└── CONTRIBUTING.md # Project conventions and workflow guidelines
+##### ├── client/         # React + Vite frontend
+##### ├── server/         # Express.js + Node.js backend API
+##### ├── cv_service/     # Python / OpenCV computer vision service
+##### ├── data/           # Local sample video clips, blueprints, and POS CSVs
+##### └── CONTRIBUTING.md # Project conventions and workflow guidelines
 
 ---
 
