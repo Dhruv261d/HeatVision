@@ -12,11 +12,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "heatvision-monorepo": "file:..",
     "helmet": "^8.3.0",
     "mongoose": "^9.9.1",
-    "morgan": "^1.11.0"
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "multer-storage-cloudinary": "^4.0.0",
+    "nodemon": "^3.1.14"
   }
 }
