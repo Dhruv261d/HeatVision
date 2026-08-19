@@ -1,19 +1,42 @@
-import { Flame } from 'lucide-react'
+import React, { useState } from 'react';
+import HomographyCalibrator from './components/HomographyCalibrator';
 
-function App() {
+export default function App() {
+  // Sample placeholder image for testing homography calibration
+  const sampleImage = 'https://picsum.photos/id/1074/1280/720';
+  const [calibrationData, setCalibrationData] = useState(null);
+
+  const handleSaveCalibration = (data) => {
+    console.log('Saved Calibration Data:', data);
+    setCalibrationData(data);
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-900 text-white">
-      <div className="flex items-center gap-3 rounded-xl bg-slate-800 p-6 shadow-lg border border-slate-700">
-        <Flame className="h-8 w-8 text-orange-500 animate-pulse" />
-        <h1 className="text-3xl font-bold tracking-tight text-orange-400">
-          HeatVision Initialized
-        </h1>
-      </div>
-      <p className="mt-4 text-slate-400 font-mono text-sm">
-        Frontend setup complete with Tailwind CSS v4 & Lucide Icons.
-      </p>
-    </div>
-  )
-}
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8 flex flex-col items-center justify-start gap-8">
+      <header className="text-center max-w-xl">
+        <h1 className="text-3xl font-extrabold tracking-tight mb-2">HeatVision Dashboard</h1>
+        <p className="text-sm text-slate-400">
+          Interactive calibration tool to warp camera perspective coordinates onto store blueprint floor plans.
+        </p>
+      </header>
 
-export default App
+      <main className="w-full max-w-5xl">
+        <HomographyCalibrator
+          imageSrc={sampleImage}
+          onSaveCalibration={handleSaveCalibration}
+        />
+
+        {calibrationData && (
+          <div className="mt-6 p-4 bg-slate-900 border border-slate-800 rounded-xl max-w-5xl mx-auto">
+            <h3 className="text-sm font-semibold text-emerald-400 mb-2">
+              ✓ Calibration Output Captured
+            </h3>
+            <pre className="bg-slate-950 p-3 rounded-lg text-xs font-mono text-slate-300 overflow-x-auto">
+              {JSON.stringify(calibrationData, null, 2)}
+            </pre>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
