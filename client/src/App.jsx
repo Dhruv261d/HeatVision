@@ -29,8 +29,8 @@ function App() {
           >
             <Menu size={22} />
           </button>
-          <div 
-            className="flex items-center gap-2.5 cursor-pointer" 
+          <div
+            className="flex items-center gap-2.5 cursor-pointer"
             onClick={() => setActiveTab("home")}
           >
             <img
@@ -167,7 +167,8 @@ function App() {
                 HeatVision Workspace
               </h1>
               <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-                Open the sidebar menu to navigate between video tools, camera settings, and spatial analytics.
+                Open the sidebar menu to navigate between video tools, camera
+                settings, and spatial analytics.
               </p>
             </div>
           </div>
