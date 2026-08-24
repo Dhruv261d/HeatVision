@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import HomographyCalibrator from "./components/HomographyCalibrator";
+
 import "./App.css";
 
 function App() {
@@ -257,11 +258,7 @@ function App() {
               alt="HeatVision"
               className="heatvision-logo"
             />
-
-            <span className="font-bold text-lg tracking-wide text-white">
-              HeatVision
-            </span>
-          </div>
+           </div>
         </div>
 
         <div className="user-section">
@@ -294,9 +291,6 @@ function App() {
               className="sidebar-logo"
             />
 
-            <span className="font-bold text-base tracking-wide text-white">
-              HeatVision AI
-            </span>
           </div>
 
           <button
