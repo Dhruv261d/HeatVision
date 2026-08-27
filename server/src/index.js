@@ -9,6 +9,7 @@ import connectCloudinary from './config/cloudinary.js';
 import videoRoutes from './routes/videoRoutes.js';
 import { initSocket } from './socket.js';
 import { startMockProcessingJob } from './mockJob.js';
+import { runCvScript } from './cvRunner.js';
 
 dotenv.config();
 
@@ -39,6 +40,15 @@ app.get('/api/health', (req, res) => {
 app.get('/api/test/start-job', (req, res) => {
   startMockProcessingJob();
   res.json({ message: 'Mock job started, watch the socket events' });
+});
+
+app.get('/api/test/run-cv', (req, res) => {
+  runCvScript({
+    videoPath: 'sample-video.mp4',
+    cameraId: 'cam1',
+    outputPath: 'output/result.json',
+  });
+  res.json({ message: 'CV script triggered, watch the server console' });
 });
 
 app.get('/', (req, res) => {
