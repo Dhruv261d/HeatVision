@@ -51,10 +51,12 @@ app.use('/api/videos', videoRoutes);
 const httpServer = createServer(app);
 initSocket(httpServer);
 
-connectDB().then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`[server]: Server is running at http://localhost:${PORT}`);
-  });
-}).catch((err) => {
-  console.error('[database]: Failed to connect to MongoDB', err);
+// TEMPORARY: server starts even if MongoDB isn't reachable yet.
+// Remove this bypass once Dhruv whitelists your IP in Atlas Network Access.
+httpServer.listen(PORT, () => {
+  console.log(`[server]: Server is running at http://localhost:${PORT}`);
+});
+
+connectDB().catch((err) => {
+  console.error('[database]: Failed to connect to MongoDB (server is still running without it):', err.message);
 });
