@@ -6,10 +6,11 @@ dotenv.config();
 
 const connectCloudinary = () => {
   cloudinary.config({
-    cloud_name: process.env.CLOUD_NAME,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
+  console.log('[cloudinary]: Cloudinary configured');
 };
 
 const storage = new CloudinaryStorage({
@@ -17,7 +18,7 @@ const storage = new CloudinaryStorage({
   params: {
     folder: 'app/Alex-Morgan',
     resource_type: 'video',
-    allowed_formats: ['mp4', 'mkv', 'avi'],
+    allowed_formats: ['mp4', 'mkv', 'avi', 'mov'],
   },
 });
 
