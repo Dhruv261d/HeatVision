@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { concatenateClips } from './ffmpegService.js';
+import { runCvScript } from '../cvRunner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,94 +70,60 @@ const processNextJob = async () => {
 
     const inputVideoPath = await concatenateClips(clipPaths, mergedOutputPath);
 
-    // Stage 2: Hand off concatenated video to Python CV Service (Issue #11 & #12)
+    // Stage 2: Hand off concatenated video to Python CV Service (Issue #11, #12, #13)
     job.status = 'processing';
     emitStatus(job);
 
-    const pythonScript = path.resolve(__dirname, '../../../cv_service/main.py');
-    let pythonExecutable = process.env.PYTHON_PATH || 'python';
-    if (!process.env.PYTHON_PATH) {
-      const winVenvPython = path.resolve(__dirname, '../../../cv_service/venv/Scripts/python.exe');
-      const unixVenvPython = path.resolve(__dirname, '../../../cv_service/venv/bin/python');
-      if (fs.existsSync(winVenvPython)) {
-        pythonExecutable = winVenvPython;
-      } else if (fs.existsSync(unixVenvPython)) {
-        pythonExecutable = unixVenvPython;
-      }
-    }
-    const pyProcess = spawn(pythonExecutable, [pythonScript, inputVideoPath, job.cameraId, job.id]);
+    const outputJsonPath = path.join(tempOutputDir, `detections_${job.id}.json`);
 
-    pyProcess.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n');
+    runCvScript({
+      videoPath: inputVideoPath,
+      cameraId: job.cameraId,
+      outputPath: outputJsonPath,
+      onProgress: (progressData) => {
+        job.currentFrame = progressData.frame || job.currentFrame;
+        job.totalFrames = progressData.totalFrames || job.totalFrames;
+        job.progress = progressData.progress || job.progress;
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        try {
-          const parsed = JSON.parse(line.trim());
-
-          if (parsed.type === 'progress') {
-            job.currentFrame = parsed.frame || job.currentFrame;
-            job.totalFrames = parsed.totalFrames || job.totalFrames;
-            job.progress = parsed.progress || job.progress;
-
-            if (ioInstance) {
-              ioInstance.emit('processing:progress', {
-                jobId: job.id,
-                frame: job.currentFrame,
-                totalFrames: job.totalFrames,
-                progress: job.progress,
-              });
-            }
-          }
-        } catch {
-          console.log(`[CV Output]: ${line}`);
-        }
-      }
-
-      emitStatus(job);
-    });
-
-    pyProcess.stderr.on('data', (data) => {
-      console.error(`[CV Error]: ${data.toString()}`);
-    });
-
-    pyProcess.on('close', (code) => {
-      // Clean up temporary merged video file
-      if (fs.existsSync(mergedOutputPath) && clipPaths.length > 1) {
-        fs.unlinkSync(mergedOutputPath);
-      }
-
-      if (code === 0) {
-        job.status = 'completed';
-        job.progress = 100;
         if (ioInstance) {
-          ioInstance.emit('processing:complete', { jobId: job.id, cameraId: job.cameraId });
-        }
-      } else {
-        job.status = 'failed';
-        if (ioInstance) {
-          ioInstance.emit('processing:error', {
+          ioInstance.emit('processing:progress', {
             jobId: job.id,
-            error: `Process exited with code ${code}`,
+            frame: job.currentFrame,
+            totalFrames: job.totalFrames,
+            progress: job.progress,
           });
         }
-      }
+        emitStatus(job);
+      },
+      onError: (errMessage) => {
+        console.error(`[CV Error][Job ${job.id}]:`, errMessage);
+      },
+      onExit: (code) => {
+        // Clean up temporary merged video file if concatenated
+        if (fs.existsSync(mergedOutputPath) && clipPaths.length > 1) {
+          try { fs.unlinkSync(mergedOutputPath); } catch (e) {}
+        }
 
-      emitStatus(job);
-      isProcessing = false;
-      processNextJob();
-    });
+        if (code === 0) {
+          job.status = 'completed';
+          job.progress = 100;
+          if (ioInstance) {
+            ioInstance.emit('processing:complete', { jobId: job.id, cameraId: job.cameraId });
+          }
+        } else {
+          job.status = 'failed';
+          if (ioInstance) {
+            ioInstance.emit('processing:error', {
+              jobId: job.id,
+              error: `Process exited with code ${code}`,
+            });
+          }
+        }
 
-    pyProcess.on('error', (err) => {
-      console.error('[CV Spawn Error]:', err);
-      job.status = 'failed';
-      if (ioInstance) {
-        ioInstance.emit('processing:error', { jobId: job.id, error: err.message });
+        emitStatus(job);
+        isProcessing = false;
+        processNextJob();
       }
-      emitStatus(job);
-      isProcessing = false;
-      processNextJob();
     });
   } catch (err) {
     console.error('[Queue Exception]:', err);
