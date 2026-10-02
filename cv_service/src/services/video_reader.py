@@ -1,160 +1,362 @@
 import os
-import sys
-import json
-import logging
 import cv2
+import json
+
 from .person_detection import detect_people
 from .bottom_center import calculate_bottom_center
-from .homography import apply_homography, parse_homography_matrix
+from .roi import is_point_inside_roi, draw_roi
 
-# Setup logger for pipeline exception handling & crash recovery (Issue #17)
-logger = logging.getLogger("HeatVision.VideoReader")
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-default_path = os.path.join(current_dir, '..', '..', '..', 'data', 'demo', 'demo 2.mp4')
 
-def read_video(video_path=default_path, homography_matrix=None, show_preview=False):
-    """
-    Reads a video file frame-by-frame, performs YOLO object detection, foot-point calculation,
-    3x3 homography perspective transformation (Issue #16), and outputs detection payloads
-    with full exception handling and crash recovery (Issue #17).
-    """
-    logger.info(f"Initializing video processing stream for: {video_path}")
-    
-    if not os.path.exists(video_path):
-        logger.error(f"Video file does not exist at path: {video_path}")
-        return []
+default_path = os.path.join(
+    current_dir,
+    '..',
+    '..',
+    '..',
+    'footage',
+    'cctv footage.mp4'
+)
 
-    try:
-        vid_capture = cv2.VideoCapture(video_path)
-    except Exception as e:
-        logger.error(f"Failed to initialize VideoCapture for {video_path}: {e}")
-        return []
+
+# ---------------------------------------------------------
+# OUTPUT DIRECTORY
+# ---------------------------------------------------------
+
+output_dir = os.path.join(
+    current_dir,
+    '..',
+    '..',
+    '..',
+    'output'
+)
+
+os.makedirs(output_dir, exist_ok=True)
+
+
+# Saved debug video
+debug_video_path = os.path.join(
+    output_dir,
+    'debug_output.mp4'
+)
+
+
+# Saved detection JSON
+json_output_path = os.path.join(
+    output_dir,
+    'detections.json'
+)
+
+
+def read_video(video_path=default_path):
+
+    vid_capture = cv2.VideoCapture(video_path)
 
     if not vid_capture.isOpened():
-        logger.error(f"Unable to open video source: {video_path}")
+        print(
+            f"[CV Error]: Unable to open video source: "
+            f"{video_path}"
+        )
         return []
 
-    try:
-        frame_width = int(vid_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(vid_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = vid_capture.get(cv2.CAP_PROP_FPS) or 30.0
-        total_frames = int(vid_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    except Exception as e:
-        logger.warning(f"Failed to extract full video metadata: {e}")
-        frame_width, frame_height, fps, total_frames = 1920, 1080, 30.0, 100
+    frame_width = int(
+        vid_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+    )
 
-    logger.info(f"[Video Metadata]: {frame_width}x{frame_height} @ {fps:.2f} FPS | Total Frames: {total_frames}")
-    
-    H = parse_homography_matrix(homography_matrix)
+    frame_height = int(
+        vid_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    )
+
+    fps = vid_capture.get(
+        cv2.CAP_PROP_FPS
+    )
+
+    total_frames = int(
+        vid_capture.get(cv2.CAP_PROP_FRAME_COUNT)
+    )
+
+    print(
+        f"[Video Metadata]: "
+        f"Resolution: {frame_width}x{frame_height} | "
+        f"FPS: {fps} | "
+        f"Total Frames: {total_frames}"
+    )
+
+
+    # -----------------------------------------------------
+    # DEBUG VIDEO WRITER
+    # -----------------------------------------------------
+
+    fourcc = cv2.VideoWriter_fourcc(
+        *'mp4v'
+    )
+
+    debug_writer = cv2.VideoWriter(
+        debug_video_path,
+        fourcc,
+        fps,
+        (frame_width, frame_height)
+    )
+
 
     frame_count = 0
+
     detections_log = []
 
-    try:
-        while True:
-            try:
-                ret, frame = vid_capture.read()
-                if not ret or frame is None:
-                    logger.info("End of video stream or unreadable frame encountered.")
-                    break
 
-                frame_count += 1
+    # -----------------------------------------------------
+    # VIDEO LOOP
+    # -----------------------------------------------------
 
-                # Progress indicator for external process runner (Issue #13 & #17)
-                if total_frames > 0 and frame_count % 10 == 0:
-                    progress_pct = min(100, int((frame_count / total_frames) * 100))
-                    progress_payload = json.dumps({
-                        "type": "progress",
-                        "frame": frame_count,
-                        "totalFrames": total_frames,
-                        "progress": progress_pct
-                    })
-                    print(f"[CV Progress]: {progress_payload}")
-                    sys.stdout.flush()
+    while True:
 
-                # Process every 2nd frame for 2x speed optimization
-                if frame_count % 2 != 0:
+        ret, frame = vid_capture.read()
+
+        if not ret:
+            break
+
+        frame_count += 1
+
+
+        # -------------------------------------------------
+        # Skip every other frame
+        # -------------------------------------------------
+
+        if frame_count % 2 != 0:
+            continue
+
+
+        # -------------------------------------------------
+        # ROI OVERLAY
+        # -------------------------------------------------
+
+        draw_roi(frame)
+
+
+        # -------------------------------------------------
+        # PERSON DETECTION
+        # -------------------------------------------------
+
+        tracks = detect_people(frame)
+
+        frame_detections = []
+
+
+        # -------------------------------------------------
+        # PROCESS DETECTIONS
+        # -------------------------------------------------
+
+        for track in tracks:
+
+            boxes = track.boxes
+
+            for box in boxes:
+
+                # -----------------------------------------
+                # CONFIDENCE
+                # -----------------------------------------
+
+                confidence = float(
+                    box.conf[0].cpu().numpy()
+                )
+
+
+                # -----------------------------------------
+                # BOUNDING BOX
+                # -----------------------------------------
+
+                x1, y1, x2, y2 = (
+                    box.xyxy[0]
+                    .cpu()
+                    .numpy()
+                )
+
+
+                # -----------------------------------------
+                # FOOT POINT
+                # -----------------------------------------
+
+                x_feet, y_feet = calculate_bottom_center(
+                    x1,
+                    x2,
+                    y1,
+                    y2
+                )
+
+
+                # -----------------------------------------
+                # ROI CHECK
+                # -----------------------------------------
+
+                inside_roi = is_point_inside_roi(
+                    x_feet,
+                    y_feet
+                )
+
+
+                # -----------------------------------------
+                # IGNORE DETECTION OUTSIDE ROI
+                # -----------------------------------------
+
+                if not inside_roi:
                     continue
 
-                # Run person detection with error recovery wrapper
-                try:
-                    tracks = detect_people(frame)
-                except Exception as det_err:
-                    logger.error(f"Error during detection on frame {frame_count}: {det_err}")
-                    tracks = []
 
-                frame_detections = []
+                # -----------------------------------------
+                # DETECTION DATA
+                # -----------------------------------------
 
-                for track in tracks:
-                    try:
-                        boxes = track.boxes
-                        for box in boxes:
-                            confidence = float(box.conf[0].cpu().numpy())
-                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                            
-                            # 1. Calculate ground foot-point coordinate
-                            x_feet, y_feet = calculate_bottom_center(x1, x2, y1, y2)
-                            
-                            # 2. Apply 3x3 Homography transformation (Issue #16)
-                            u_floor, v_floor = apply_homography((x_feet, y_feet), H)
+                detection = {
+                    'bbox': [
+                        float(x1),
+                        float(y1),
+                        float(x2),
+                        float(y2)
+                    ],
 
-                            track_id = int(box.id[0].cpu().numpy()) if hasattr(box, 'id') and box.id is not None else None
+                    'feet': [
+                        float(x_feet),
+                        float(y_feet)
+                    ],
 
-                            frame_detections.append({
-                                'track_id': track_id,
-                                'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                                'feet': [float(x_feet), float(y_feet)],
-                                'floorplan_coords': [float(u_floor), float(v_floor)],
-                                'confidence': round(confidence, 2)
-                            })
+                    'confidence': round(
+                        confidence,
+                        2
+                    )
+                }
 
-                            if show_preview:
-                                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                                label = f"Person: {confidence:.2f}"
-                                cv2.putText(frame, label, (int(x1), int(y1) - 10),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                                cv2.circle(frame, (int(x_feet), int(y_feet)), 5, (0, 0, 255), -1)
-                    except Exception as box_err:
-                        logger.error(f"Error processing bounding box in frame {frame_count}: {box_err}")
-                        continue
 
-                detections_log.append({
-                    'frame': frame_count,
-                    'detections': frame_detections
-                })
+                frame_detections.append(
+                    detection
+                )
 
-                if show_preview:
-                    try:
-                        cv2.imshow('HeatVision CV Pipeline', frame)
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            logger.info("User requested termination via preview window 'q' key.")
-                            break
-                    except Exception as gui_err:
-                        logger.warning(f"GUI preview error (running headless): {gui_err}")
-                        show_preview = False
 
-            except Exception as frame_err:
-                logger.error(f"Unhandled exception on frame {frame_count}: {frame_err}. Recovering to next frame.")
-                continue
+                # -----------------------------------------
+                # BOUNDING BOX OVERLAY
+                # -----------------------------------------
 
-    except KeyboardInterrupt:
-        logger.warning("Pipeline execution interrupted by user.")
-    except Exception as pipeline_err:
-        logger.critical(f"Critical error in video processing pipeline: {pipeline_err}")
-    finally:
-        logger.info("Cleaning up VideoCapture resources.")
-        try:
-            vid_capture.release()
-            if show_preview:
-                cv2.destroyAllWindows()
-        except Exception as cleanup_err:
-            logger.error(f"Error releasing video capture resources: {cleanup_err}")
+                cv2.rectangle(
+                    img=frame,
+                    pt1=(
+                        int(x1),
+                        int(y1)
+                    ),
+                    pt2=(
+                        int(x2),
+                        int(y2)
+                    ),
+                    color=(0, 255, 0),
+                    thickness=2
+                )
 
-    logger.info(f"Video processing finished. Processed {len(detections_log)} sampled frames.")
+
+                # -----------------------------------------
+                # CONFIDENCE LABEL
+                # -----------------------------------------
+
+                label = (
+                    f"Person: "
+                    f"{confidence:.2f}"
+                )
+
+                cv2.putText(
+                    img=frame,
+                    text=label,
+                    org=(
+                        int(x1),
+                        int(y1) - 10
+                    ),
+                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                    fontScale=0.5,
+                    color=(0, 255, 0),
+                    thickness=2
+                )
+
+
+                # -----------------------------------------
+                # FOOT POINT OVERLAY
+                # -----------------------------------------
+
+                cv2.circle(
+                    img=frame,
+                    center=(
+                        int(x_feet),
+                        int(y_feet)
+                    ),
+                    radius=5,
+                    color=(0, 0, 255),
+                    thickness=-1
+                )
+
+
+        # -------------------------------------------------
+        # FRAME DETECTION LOG
+        # -------------------------------------------------
+
+        detections_log.append({
+            'frame': frame_count,
+            'detections': frame_detections
+        })
+
+
+        # -------------------------------------------------
+        # SAVE DEBUG FRAME TO VIDEO
+        # -------------------------------------------------
+
+        debug_writer.write(frame)
+
+
+        # -------------------------------------------------
+        # DISPLAY
+        # -------------------------------------------------
+
+        cv2.imshow(
+            'HeatVision CV Pipeline',
+            frame
+        )
+
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+
+    # -----------------------------------------------------
+    # CLEANUP
+    # -----------------------------------------------------
+
+    vid_capture.release()
+
+    debug_writer.release()
+
+    cv2.destroyAllWindows()
+
+
+    # -----------------------------------------------------
+    # SAVE JSON
+    # -----------------------------------------------------
+
+    with open(
+        json_output_path,
+        'w',
+        encoding='utf-8'
+    ) as json_file:
+
+        json.dump(
+            detections_log,
+            json_file,
+            indent=4
+        )
+
+
+    print(
+        f"[CV Output]: Debug video saved to: "
+        f"{debug_video_path}"
+    )
+
+    print(
+        f"[CV Output]: Detection JSON saved to: "
+        f"{json_output_path}"
+    )
+
+
     return detections_log
