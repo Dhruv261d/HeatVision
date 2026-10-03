@@ -34,6 +34,9 @@ def main():
     parser.add_argument("--output", required=False, help="Path to save output JSON detections payload")
     parser.add_argument("--homography", required=False, help="JSON string or file path to 3x3 homography matrix")
     parser.add_argument("--preview", action="store_true", help="Display live OpenCV window preview")
+    parser.add_argument("--debug-video", required=False, help="Path to save annotated output debug video MP4")
+    parser.add_argument("--roi", required=False, help="JSON string or file path to ROI polygon coordinates [(x,y), ...]")
+    parser.add_argument("--conf", type=float, default=0.05, help="Confidence threshold for YOLO person detection")
     parser.add_argument("--check-setup", action="store_true", help="Run environment diagnostic check")
 
     args = parser.parse_args()
@@ -59,13 +62,27 @@ def main():
         except Exception as e:
             logger.warning(f"Failed to parse homography matrix input: {e}. Defaulting to identity matrix.")
 
+    roi_points = None
+    if args.roi:
+        try:
+            if os.path.exists(args.roi):
+                with open(args.roi, 'r') as f:
+                    roi_points = json.load(f)
+            else:
+                roi_points = json.loads(args.roi)
+        except Exception as e:
+            logger.warning(f"Failed to parse ROI input: {e}. Defaulting to default ROI polygon.")
+
     logger.info(f"Starting HeatVision CV Pipeline for video: {video_path}")
     
     try:
         detections_log = read_video(
             video_path=video_path,
             homography_matrix=homography_matrix,
-            show_preview=args.preview
+            show_preview=args.preview,
+            debug_video_path=args.debug_video,
+            conf_threshold=args.conf,
+            roi_points=roi_points
         )
 
         if args.output:

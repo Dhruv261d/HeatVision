@@ -1,9 +1,31 @@
+import logging
+import torch
 from ultralytics import YOLO
 
-# Load model once at module initialization
-model = YOLO('yolov8n.pt')
+logger = logging.getLogger("HeatVision.PersonDetection")
 
-def detect_people(frame):
-    # Filter strictly for person class (classes=[0]) with tracking persistent state
-    tracks = model.track(frame, persist=True, show=False, classes=[0], conf=0.05, verbose=False)
+# Conditional device allocation (cuda GPU if available, CPU fallback) (Issue #18)
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+logger.info(f"Initializing YOLOv8 detection model on target device: {device}")
+
+# Load model weights (Issue #18)
+model = YOLO('yolov8n.pt')
+if hasattr(model, 'to'):
+    model.to(device)
+
+DEFAULT_CONFIDENCE = 0.05
+
+def detect_people(frame, conf=DEFAULT_CONFIDENCE):
+    """
+    Performs YOLOv8 person detection (class 0) with persistent tracking.
+    """
+    tracks = model.track(
+        frame,
+        persist=True,
+        show=False,
+        classes=[0],
+        conf=conf,
+        device=device,
+        verbose=False
+    )
     return tracks
