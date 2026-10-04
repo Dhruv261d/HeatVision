@@ -143,6 +143,7 @@ class TrajectoryManager:
             'path_length': round(history.path_length, 2),
             'start_floor': history.start_floor,
             'end_floor': history.end_floor,
+            'path': [{'t': p['timestamp'], 'x': p['smoothed'][0], 'y': p['smoothed'][1]} for p in history.points],
         }
         self.completed.append(summary)
         logger.info(f"Session completed: ID {track_id} ({reason}), dwell {summary['dwell_time']}s")
