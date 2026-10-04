@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from services.video_reader import read_video
+from services.trajectory_export import export_trajectories
 
 # Configured logging format
 logging.basicConfig(
@@ -36,6 +37,7 @@ def main():
     parser.add_argument("--preview", action="store_true", help="Display live OpenCV window preview")
     parser.add_argument("--debug-video", required=False, help="Path to save annotated output debug video MP4")
     parser.add_argument("--roi", required=False, help="JSON string or file path to ROI polygon coordinates [(x,y), ...]")
+    parser.add_argument("--exit-zones", required=False, help="JSON string or file path to a list of exit zone polygons on the floorplan (Issue #26)")
     parser.add_argument("--conf", type=float, default=0.05, help="Confidence threshold for YOLO person detection")
     parser.add_argument("--check-setup", action="store_true", help="Run environment diagnostic check")
 
@@ -49,7 +51,7 @@ def main():
     if not video_path:
         # Default sample video path for testing
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        video_path = os.path.normpath(os.path.join(current_dir, '..', '..', 'data', 'demo', 'demo 2.mp4'))
+        video_path = os.path.normpath(os.path.join(current_dir, '..','..', 'data', 'demo', 'demo 2.mp4'))
 
     homography_matrix = None
     if args.homography:
@@ -73,23 +75,38 @@ def main():
         except Exception as e:
             logger.warning(f"Failed to parse ROI input: {e}. Defaulting to default ROI polygon.")
 
+    # Exit zone polygons for ending shopper sessions (Issue #26/#27)
+    exit_zones = None
+    if args.exit_zones:
+        try:
+            if os.path.exists(args.exit_zones):
+                with open(args.exit_zones, 'r') as f:
+                    exit_zones = json.load(f)
+            else:
+                exit_zones = json.loads(args.exit_zones)
+        except Exception as e:
+            logger.warning(f"Failed to parse exit zones input: {e}. Running without exit zones.")
+
     logger.info(f"Starting HeatVision CV Pipeline for video: {video_path}")
-    
+
     try:
+        session_summaries = []
         detections_log = read_video(
             video_path=video_path,
             homography_matrix=homography_matrix,
             show_preview=args.preview,
             debug_video_path=args.debug_video,
             conf_threshold=args.conf,
-            roi_points=roi_points
+            roi_points=roi_points,
+            exit_zones=exit_zones,
+            session_summaries=session_summaries
         )
 
         if args.output:
             out_dir = os.path.dirname(args.output)
             if out_dir and not os.path.exists(out_dir):
                 os.makedirs(out_dir, exist_ok=True)
-            
+
             with open(args.output, 'w') as f:
                 json.dump({
                     "video": video_path,
@@ -98,6 +115,13 @@ def main():
                     "frames": detections_log
                 }, f, indent=2)
             logger.info(f"Detections payload successfully saved to {args.output}")
+
+        # Export finished shopper trajectories to data/processed (Issue #27)
+        try:
+            result = export_trajectories(session_summaries, video_path, camera_id=args.camera or "default")
+            logger.info(f"Trajectory export: {result['exported']} saved, {result['rejected']} rejected -> {result['file']}")
+        except Exception as export_err:
+            logger.error(f"Trajectory export failed: {export_err}")
 
     except Exception as pipeline_err:
         logger.critical(f"Unhandled pipeline failure: {pipeline_err}", exc_info=True)
