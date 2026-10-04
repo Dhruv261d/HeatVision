@@ -22,14 +22,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 default_path = os.path.join(current_dir, '..', '..', '..', 'data', 'demo', 'demo 2.mp4')
 
 def read_video(video_path=default_path, homography_matrix=None, show_preview=False,
-               debug_video_path=None, conf_threshold=0.05, roi_points=None):
+               debug_video_path=None, conf_threshold=0.05, roi_points=None,
+               exit_zones=None, session_summaries=None):
     """
     Reads a video file frame-by-frame, performs YOLO person detection (Issue #20),
-    ByteTrack tracking (Issue #23), trajectory state and velocity smoothing (Issue #24),
+    ByteTrack tracking with ID recovery (Issues #23, #25), trajectory state and velocity
+    smoothing (Issue #24), shopper session cleanup at exit zones (Issue #26),
     ROI polygon filtering (Issue #20), foot-point calculation, 3x3 homography perspective
     transformation (Issue #16), and outputs detection payloads (Issue #21).
     Renders visual overlays (ROI, bounding boxes, foot points) and optionally exports
     a debug output video (Issue #22).
+
+    exit_zones: optional list of polygons (floorplan coordinates) that end a shopper's session.
+    session_summaries: optional list; completed session summaries are appended to it.
     """
     logger.info(f"Initializing video processing stream for: {video_path}")
 
@@ -61,6 +66,9 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
     H = parse_homography_matrix(homography_matrix)
     active_roi = parse_roi_points(roi_points)
 
+    # Entrance/exit boundary polygons on the floorplan (Issue #26)
+    parsed_exit_zones = [parse_roi_points(zone) for zone in exit_zones] if exit_zones else []
+
     # Setup Debug Video Writer if requested (Issue #22)
     debug_writer = None
     if debug_video_path:
@@ -81,8 +89,12 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
     # Pipeline processes every 2nd frame, so the tracker sees half the video FPS (Issue #23)
     tracker = PersonTracker(frame_rate=fps / 2)
 
-    # Trajectory state for all shoppers (Issue #24)
-    trajectories = TrajectoryManager(fps=fps)
+    # Trajectory state for all shoppers; sessions end at exit zones or after the buffer (Issues #24, #26)
+    trajectories = TrajectoryManager(
+        fps=fps,
+        exit_zones=parsed_exit_zones,
+        timeout_frames=tracker.buffer_frames * 2 + 2   # tracker buffer in video frames, plus a small margin
+    )
 
     try:
         while True:
@@ -173,12 +185,18 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                         continue
 
                 # Update trajectories and attach smoothed position + velocity (Issue #24)
+                completed_before = len(trajectories.completed)
                 motion = trajectories.update(frame_count, observations)
                 for det in frame_detections:
                     m = motion.get(det['track_id'])
                     if m is not None:
                         det['smoothed_floorplan_coords'] = m['smoothed_floor']
                         det['velocity'] = m['velocity']
+
+                # Free tracker memory for finished and long-lost shoppers (Issue #26)
+                for summary in trajectories.completed[completed_before:]:
+                    tracker.release_track(summary['track_id'])
+                tracker.purge_expired()
 
                 detections_log.append({
                     'frame': frame_count,
@@ -219,6 +237,12 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                 cv2.destroyAllWindows()
         except Exception as cleanup_err:
             logger.error(f"Error releasing video capture resources: {cleanup_err}")
+
+    # End all remaining shopper sessions and hand back the summaries (Issue #26)
+    trajectories.finalize()
+    if session_summaries is not None:
+        session_summaries.extend(trajectories.completed)
+    logger.info(f"Shopper sessions completed: {len(trajectories.completed)}")
 
     logger.info(f"Video processing finished. Processed {len(detections_log)} sampled frames.")
     return detections_log

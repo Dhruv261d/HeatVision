@@ -141,3 +141,16 @@ class PersonTracker:
             )
         s["pos"] = pos
         s["frame"] = self.frame_index
+
+    def release_track(self, original_id):
+        """Forget a finished shopper so tracker memory is freed (Issue #26)."""
+        self.state.pop(original_id, None)
+        for raw_id in [r for r, o in self.alias.items() if o == original_id]:
+            del self.alias[raw_id]
+
+    def purge_expired(self):
+        """Drop shoppers lost for longer than the buffer (Issue #26)."""
+        expired = [o for o, s in self.state.items()
+                   if self.frame_index - s["frame"] > self.buffer_frames]
+        for original_id in expired:
+            self.release_track(original_id)
