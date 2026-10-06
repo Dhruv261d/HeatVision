@@ -17,15 +17,15 @@ DEFAULT_CONFIDENCE = 0.05
 
 def detect_people(frame, conf=DEFAULT_CONFIDENCE):
     """
-    Performs YOLOv8 person detection (class 0) with persistent tracking.
+    Performs YOLOv8 person detection (class 0) only.
+    Tracking is handled separately by PersonTracker (Issue #23).
     """
-    tracks = model.track(
+    results = model.predict(
         frame,
-        persist=True,
         show=False,
         classes=[0],
         conf=conf,
         device=device,
         verbose=False
     )
-    return tracks
+    return results

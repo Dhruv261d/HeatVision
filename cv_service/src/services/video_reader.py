@@ -4,6 +4,7 @@ import json
 import logging
 import cv2
 from .person_detection import detect_people
+from .tracker import PersonTracker
 from .bottom_center import calculate_bottom_center
 from .homography import apply_homography, parse_homography_matrix
 from .roi import is_point_inside_roi, draw_roi, parse_roi_points, is_valid_bbox
@@ -23,13 +24,14 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                debug_video_path=None, conf_threshold=0.05, roi_points=None):
     """
     Reads a video file frame-by-frame, performs YOLO person detection (Issue #20),
-    ROI polygon filtering (Issue #20), foot-point calculation, 3x3 homography perspective
-    transformation (Issue #16), and outputs detection payloads (Issue #21).
+    ByteTrack tracking (Issue #23), ROI polygon filtering (Issue #20), foot-point
+    calculation, 3x3 homography perspective transformation (Issue #16), and outputs
+    detection payloads (Issue #21).
     Renders visual overlays (ROI, bounding boxes, foot points) and optionally exports
     a debug output video (Issue #22).
     """
     logger.info(f"Initializing video processing stream for: {video_path}")
-    
+
     if not os.path.exists(video_path):
         logger.error(f"Video file does not exist at path: {video_path}")
         return []
@@ -54,7 +56,7 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
         frame_width, frame_height, fps, total_frames = 1920, 1080, 30.0, 100
 
     logger.info(f"[Video Metadata]: {frame_width}x{frame_height} @ {fps:.2f} FPS | Total Frames: {total_frames}")
-    
+
     H = parse_homography_matrix(homography_matrix)
     active_roi = parse_roi_points(roi_points)
 
@@ -74,6 +76,9 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
 
     frame_count = 0
     detections_log = []
+
+    # Pipeline processes every 2nd frame, so the tracker sees half the video FPS (Issue #23)
+    tracker = PersonTracker(frame_rate=fps / 2)
 
     try:
         while True:
@@ -104,53 +109,52 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                 # Draw ROI overlay on frame (Issue #22)
                 draw_roi(frame, active_roi)
 
-                # Run person detection with confidence threshold (Issue #20)
+                # Run person detection, then ByteTrack for persistent IDs (Issues #20, #23)
                 try:
-                    tracks = detect_people(frame, conf=conf_threshold)
+                    results = detect_people(frame, conf=conf_threshold)
+                    boxes = results[0].boxes if len(results) > 0 else None
+                    tracked_people = tracker.update(boxes, frame)
                 except Exception as det_err:
-                    logger.error(f"Error during detection on frame {frame_count}: {det_err}")
-                    tracks = []
+                    logger.error(f"Error during detection/tracking on frame {frame_count}: {det_err}")
+                    tracked_people = []
 
                 frame_detections = []
 
-                for track in tracks:
+                for person in tracked_people:
                     try:
-                        boxes = track.boxes
-                        for box in boxes:
-                            confidence = float(box.conf[0].cpu().numpy())
-                            x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                            
-                            # Bounding box size & ratio check (Issue #20)
-                            if not is_valid_bbox(x1, y1, x2, y2):
-                                continue
+                        x1, y1, x2, y2 = person['bbox']
+                        confidence = person['confidence']
+                        track_id = person['track_id']
 
-                            # 1. Calculate ground foot-point coordinate
-                            x_feet, y_feet = calculate_bottom_center(x1, x2, y1, y2)
+                        # Bounding box size & ratio check (Issue #20)
+                        if not is_valid_bbox(x1, y1, x2, y2):
+                            continue
 
-                            # 2. Check if detection foot point is inside ROI polygon (Issue #20)
-                            if not is_point_inside_roi(x_feet, y_feet, active_roi):
-                                continue
-                            
-                            # 3. Apply 3x3 Homography transformation (Issue #16)
-                            u_floor, v_floor = apply_homography((x_feet, y_feet), H)
+                        # 1. Calculate ground foot-point coordinate
+                        x_feet, y_feet = calculate_bottom_center(x1, x2, y1, y2)
 
-                            track_id = int(box.id[0].cpu().numpy()) if hasattr(box, 'id') and box.id is not None else None
+                        # 2. Check if foot point is inside ROI polygon (Issue #20)
+                        if not is_point_inside_roi(x_feet, y_feet, active_roi):
+                            continue
 
-                            # JSON Detection serialization (Issue #21)
-                            frame_detections.append({
-                                'track_id': track_id,
-                                'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                                'feet': [float(x_feet), float(y_feet)],
-                                'floorplan_coords': [float(u_floor), float(v_floor)],
-                                'confidence': round(confidence, 2)
-                            })
+                        # 3. Apply 3x3 Homography transformation (Issue #16)
+                        u_floor, v_floor = apply_homography((x_feet, y_feet), H)
 
-                            # Overlays: Bounding box, confidence label, and foot point (Issue #22)
-                            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                            label = f"Person: {confidence:.2f}"
-                            cv2.putText(frame, label, (int(x1), int(y1) - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            cv2.circle(frame, (int(x_feet), int(y_feet)), 5, (0, 0, 255), -1)
+                        # JSON Detection serialization (Issue #21)
+                        frame_detections.append({
+                            'track_id': track_id,
+                            'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                            'feet': [float(x_feet), float(y_feet)],
+                            'floorplan_coords': [float(u_floor), float(v_floor)],
+                            'confidence': round(confidence, 2)
+                        })
+
+                        # Overlays: Bounding box, ID + confidence label, and foot point (Issue #22)
+                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                        label = f"ID {track_id}: {confidence:.2f}"
+                        cv2.putText(frame, label, (int(x1), int(y1) - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                        cv2.circle(frame, (int(x_feet), int(y_feet)), 5, (0, 0, 255), -1)
 
                     except Exception as box_err:
                         logger.error(f"Error processing bounding box in frame {frame_count}: {box_err}")
