@@ -5,6 +5,7 @@ import logging
 import cv2
 from .person_detection import detect_people
 from .tracker import PersonTracker
+from .trajectory import TrajectoryManager
 from .bottom_center import calculate_bottom_center
 from .homography import apply_homography, parse_homography_matrix
 from .roi import is_point_inside_roi, draw_roi, parse_roi_points, is_valid_bbox
@@ -24,9 +25,9 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                debug_video_path=None, conf_threshold=0.05, roi_points=None):
     """
     Reads a video file frame-by-frame, performs YOLO person detection (Issue #20),
-    ByteTrack tracking (Issue #23), ROI polygon filtering (Issue #20), foot-point
-    calculation, 3x3 homography perspective transformation (Issue #16), and outputs
-    detection payloads (Issue #21).
+    ByteTrack tracking (Issue #23), trajectory state and velocity smoothing (Issue #24),
+    ROI polygon filtering (Issue #20), foot-point calculation, 3x3 homography perspective
+    transformation (Issue #16), and outputs detection payloads (Issue #21).
     Renders visual overlays (ROI, bounding boxes, foot points) and optionally exports
     a debug output video (Issue #22).
     """
@@ -80,6 +81,9 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
     # Pipeline processes every 2nd frame, so the tracker sees half the video FPS (Issue #23)
     tracker = PersonTracker(frame_rate=fps / 2)
 
+    # Trajectory state for all shoppers (Issue #24)
+    trajectories = TrajectoryManager(fps=fps)
+
     try:
         while True:
             try:
@@ -119,6 +123,7 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                     tracked_people = []
 
                 frame_detections = []
+                observations = []
 
                 for person in tracked_people:
                     try:
@@ -149,6 +154,13 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                             'confidence': round(confidence, 2)
                         })
 
+                        # Collect observation for trajectory state (Issue #24)
+                        observations.append({
+                            'track_id': track_id,
+                            'pixel': (x_feet, y_feet),
+                            'floor': (u_floor, v_floor)
+                        })
+
                         # Overlays: Bounding box, ID + confidence label, and foot point (Issue #22)
                         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
                         label = f"ID {track_id}: {confidence:.2f}"
@@ -159,6 +171,14 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                     except Exception as box_err:
                         logger.error(f"Error processing bounding box in frame {frame_count}: {box_err}")
                         continue
+
+                # Update trajectories and attach smoothed position + velocity (Issue #24)
+                motion = trajectories.update(frame_count, observations)
+                for det in frame_detections:
+                    m = motion.get(det['track_id'])
+                    if m is not None:
+                        det['smoothed_floorplan_coords'] = m['smoothed_floor']
+                        det['velocity'] = m['velocity']
 
                 detections_log.append({
                     'frame': frame_count,
