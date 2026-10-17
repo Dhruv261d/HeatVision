@@ -39,6 +39,7 @@ def main():
     parser.add_argument("--roi", required=False, help="JSON string or file path to ROI polygon coordinates [(x,y), ...]")
     parser.add_argument("--exit-zones", required=False, help="JSON string or file path to a list of exit zone polygons on the floorplan (Issue #26)")
     parser.add_argument("--conf", type=float, default=0.05, help="Confidence threshold for YOLO person detection")
+    parser.add_argument("--live-stream", action="store_true", help="Emit base64 preview frames via stdout")
     parser.add_argument("--check-setup", action="store_true", help="Run environment diagnostic check")
 
     args = parser.parse_args()
@@ -99,7 +100,8 @@ def main():
             conf_threshold=args.conf,
             roi_points=roi_points,
             exit_zones=exit_zones,
-            session_summaries=session_summaries
+            session_summaries=session_summaries,
+            live_stream=args.live_stream
         )
 
         if args.output:

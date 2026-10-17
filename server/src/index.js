@@ -12,7 +12,14 @@ dotenv.config();
 import connectDB from './config/db.js';
 import connectCloudinary from './config/cloudinary.js';
 import videoRoutes from './routes/videoRoutes.js';
+import caligraphyRoutes from './routes/caligraphyRoutes.js';
 import { initQueueSocket, getJobStatus } from './services/queueService.js';
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 2. Initialize Cloudinary
 connectCloudinary();
@@ -33,7 +40,9 @@ const io = new Server(server, {
 initQueueSocket(io);
 
 // Security & Logging
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -41,6 +50,10 @@ app.use(
   })
 );
 app.use(morgan('dev'));
+
+// Static uploads serving for annotated debug videos
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+app.use('/data/uploads', express.static(path.resolve(__dirname, '../../data/uploads')));
 
 // Express body parsers
 app.use(express.json({ limit: '50mb' }));
@@ -71,6 +84,9 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/videos', videoRoutes);
+app.use('/api/caligraphy', caligraphyRoutes);
+app.use('/api/calibrate', caligraphyRoutes);
+app.use('/api/calibration', caligraphyRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
