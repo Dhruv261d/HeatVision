@@ -2,7 +2,9 @@ import os
 import sys
 import json
 import logging
+import base64
 import cv2
+import numpy as np
 from .person_detection import detect_people
 from .tracker import PersonTracker
 from .trajectory import TrajectoryManager
@@ -21,9 +23,20 @@ logging.basicConfig(
 current_dir = os.path.dirname(os.path.abspath(__file__))
 default_path = os.path.join(current_dir, '..', '..', '..', 'data', 'demo', 'demo 2.mp4')
 
+def get_track_color(track_id):
+    """Generate a distinct, vibrant BGR color for each track ID using HSV golden ratio."""
+    try:
+        tid = int(track_id)
+    except (ValueError, TypeError):
+        tid = 1
+    hue = int((tid * 137.508) % 180)
+    hsv_pixel = np.uint8([[[hue, 230, 255]]])
+    bgr_pixel = cv2.cvtColor(hsv_pixel, cv2.COLOR_HSV2BGR)[0][0]
+    return int(bgr_pixel[0]), int(bgr_pixel[1]), int(bgr_pixel[2])
+
 def read_video(video_path=default_path, homography_matrix=None, show_preview=False,
                debug_video_path=None, conf_threshold=0.05, roi_points=None,
-               exit_zones=None, session_summaries=None):
+               exit_zones=None, session_summaries=None, live_stream=True):
     """
     Reads a video file frame-by-frame, performs YOLO person detection (Issue #20),
     ByteTrack tracking with ID recovery (Issues #23, #25), trajectory state and velocity
@@ -65,6 +78,7 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
 
     H = parse_homography_matrix(homography_matrix)
     active_roi = parse_roi_points(roi_points)
+    logger.info(f"Active ROI polygon initialized with {len(active_roi)} vertices: {active_roi.tolist()}")
 
     # Entrance/exit boundary polygons on the floorplan (Issue #26)
     parsed_exit_zones = [parse_roi_points(zone) for zone in exit_zones] if exit_zones else []
@@ -77,8 +91,9 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
             if out_dir and not os.path.exists(out_dir):
                 os.makedirs(out_dir, exist_ok=True)
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            debug_writer = cv2.VideoWriter(debug_video_path, fourcc, fps, (frame_width, frame_height))
-            logger.info(f"Initialized debug video recorder: {debug_video_path}")
+            writer_fps = max(1.0, fps / 2.0)
+            debug_writer = cv2.VideoWriter(debug_video_path, fourcc, writer_fps, (frame_width, frame_height))
+            logger.info(f"Initialized debug video recorder: {debug_video_path} @ {writer_fps:.1f} FPS")
         except Exception as writer_err:
             logger.error(f"Failed to initialize VideoWriter for debug output: {writer_err}")
             debug_writer = None
@@ -173,12 +188,16 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                             'floor': (u_floor, v_floor)
                         })
 
-                        # Overlays: Bounding box, ID + confidence label, and foot point (Issue #22)
-                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                        label = f"ID {track_id}: {confidence:.2f}"
-                        cv2.putText(frame, label, (int(x1), int(y1) - 10),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                        cv2.circle(frame, (int(x_feet), int(y_feet)), 5, (0, 0, 255), -1)
+                        # Overlays: Bounding box with track-specific color and ID tag
+                        color = get_track_color(track_id)
+                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                        label = f"ID {track_id}"
+                        (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+                        cv2.rectangle(frame, (int(x1), int(y1) - lh - 6), (int(x1) + lw + 6, int(y1)), color, -1)
+                        cv2.putText(frame, label, (int(x1) + 3, int(y1) - 4),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1, cv2.LINE_AA)
+                        cv2.circle(frame, (int(x_feet), int(y_feet)), 5, color, -1, lineType=cv2.LINE_AA)
+                        cv2.circle(frame, (int(x_feet), int(y_feet)), 7, (255, 255, 255), 1, lineType=cv2.LINE_AA)
 
                     except Exception as box_err:
                         logger.error(f"Error processing bounding box in frame {frame_count}: {box_err}")
@@ -193,6 +212,24 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                         det['smoothed_floorplan_coords'] = m['smoothed_floor']
                         det['velocity'] = m['velocity']
 
+                # --- DRAW TRAJECTORY TRAILS FOR ACTIVE SHOPPERS ---
+                for track_id, track in trajectories.tracks.items():
+                    if len(track.points) >= 2:
+                        color = get_track_color(track_id)
+                        # Extract recent pixel foot points for smooth trail
+                        pts = [p['pixel'] for p in track.points[-50:] if 'pixel' in p]
+                        if len(pts) >= 2:
+                            pts_arr = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
+                            cv2.polylines(frame, [pts_arr], isClosed=False, color=color, thickness=2, lineType=cv2.LINE_AA)
+                            for p in pts[-12:]:
+                                cv2.circle(frame, (int(p[0]), int(p[1])), 2, color, -1, lineType=cv2.LINE_AA)
+
+                # Overlay status banner on frame top
+                banner_text = f"Frame: {frame_count}/{total_frames} | Active Shoppers: {len(trajectories.tracks)}"
+                cv2.rectangle(frame, (10, 10), (370, 36), (15, 23, 42), -1)
+                cv2.rectangle(frame, (10, 10), (370, 36), (59, 130, 246), 1)
+                cv2.putText(frame, banner_text, (18, 27), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+
                 # Free tracker memory for finished and long-lost shoppers (Issue #26)
                 for summary in trajectories.completed[completed_before:]:
                     tracker.release_track(summary['track_id'])
@@ -206,6 +243,19 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                 # Record frame to debug video if enabled (Issue #22)
                 if debug_writer is not None:
                     debug_writer.write(frame)
+
+                # Emit live preview frame to stdout for real-time frontend streaming (every 3rd sampled frame)
+                if live_stream and frame_count % 6 == 0:
+                    try:
+                        preview_w = 540
+                        preview_h = int(preview_w * frame_height / max(1, frame_width))
+                        small_frame = cv2.resize(frame, (preview_w, preview_h), interpolation=cv2.INTER_AREA)
+                        _, buffer = cv2.imencode('.jpg', small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
+                        jpg_b64 = base64.b64encode(buffer).decode('utf-8')
+                        print(f"[CV Frame]: {jpg_b64}")
+                        sys.stdout.flush()
+                    except Exception:
+                        pass
 
                 # GUI preview display (safe headless guard)
                 if show_preview:

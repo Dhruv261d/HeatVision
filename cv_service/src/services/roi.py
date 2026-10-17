@@ -12,11 +12,18 @@ DEFAULT_ROI_POINTS = np.array([
 def parse_roi_points(roi_input):
     """
     Parses ROI points from a list/array of coordinates.
+    Accepts [[x, y], ...] or [{'x': x, 'y': y}, ...].
     Returns np.ndarray of shape (N, 2) with int32 dtype, or DEFAULT_ROI_POINTS.
     """
     if roi_input is None:
         return DEFAULT_ROI_POINTS
     try:
+        # Handle list of dicts [{'x': x, 'y': y}, ...]
+        if isinstance(roi_input, list) and len(roi_input) > 0 and isinstance(roi_input[0], dict):
+            pts = [[int(p.get('x', 0)), int(p.get('y', 0))] for p in roi_input if 'x' in p and 'y' in p]
+            if len(pts) >= 3:
+                return np.array(pts, dtype=np.int32)
+
         arr = np.array(roi_input, dtype=np.int32)
         if arr.ndim == 2 and arr.shape[1] == 2 and len(arr) >= 3:
             return arr
