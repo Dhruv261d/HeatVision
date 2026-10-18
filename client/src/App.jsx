@@ -1,3 +1,4 @@
+import HeatmapStudio from "./features/heatmap/HeatmapStudio";
 import React, { useState } from "react";
 import {
   Menu,
@@ -304,9 +305,10 @@ function App() {
         {/* CCTV Video Uploader View */}
         {activeTab === "upload" && (
           <div className="w-full max-w-5xl">
-            <VideoUploader />
+                    <VideoUploader />
           </div>
         )}
+        <HeatmapStudio />
       </main>
     </div>
   );
