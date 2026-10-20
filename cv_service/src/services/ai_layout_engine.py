@@ -30,7 +30,7 @@ def parse_pos_csv(csv_filepath):
                 zone_sales[zid] = {
                     "zone_id": zid,
                     "total_revenue": 0.0,
-                    "transaction_count": 0,
+                    "transaction_count": 0,    
                     "total_items_sold": 0,
                     "categories": set()
                 }

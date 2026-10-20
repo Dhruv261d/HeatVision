@@ -13,7 +13,11 @@ import connectDB from './config/db.js';
 import connectCloudinary from './config/cloudinary.js';
 import videoRoutes from './routes/videoRoutes.js';
 import caligraphyRoutes from './routes/caligraphyRoutes.js';
+import blueprintRoutes from './routes/blueprintRoutes.js';
+import heatmapRoutes from './routes/heatmapRoutes.js';
 import { initQueueSocket, getJobStatus } from './services/queueService.js';
+
+
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -87,6 +91,11 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/caligraphy', caligraphyRoutes);
 app.use('/api/calibrate', caligraphyRoutes);
 app.use('/api/calibration', caligraphyRoutes);
+app.use('/api/blueprints', blueprintRoutes);
+app.use('/api/zones', blueprintRoutes);
+app.use('/api/heatmap', heatmapRoutes);
+
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

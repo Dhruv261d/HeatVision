@@ -143,14 +143,21 @@ class PersonTracker:
         s["frame"] = self.frame_index
 
     def release_track(self, original_id):
-        """Forget a finished shopper so tracker memory is freed (Issue #26)."""
+        """Forget a finished shopper's position so it can't be matched again (Issue #26)."""
         self.state.pop(original_id, None)
-        for raw_id in [r for r, o in self.alias.items() if o == original_id]:
-            del self.alias[raw_id]
 
     def purge_expired(self):
-        """Drop shoppers lost for longer than the buffer (Issue #26)."""
+        """Free memory for shoppers lost beyond the buffer and for dead ByteTrack IDs (Issue #26)."""
         expired = [o for o, s in self.state.items()
                    if self.frame_index - s["frame"] > self.buffer_frames]
         for original_id in expired:
             self.release_track(original_id)
+
+        # Drop ID mappings once ByteTrack itself no longer holds that track
+        try:
+            live = {t.track_id for t in self.tracker.tracked_stracks}
+            live |= {t.track_id for t in self.tracker.lost_stracks}
+            for raw_id in [r for r in self.alias if r not in live]:
+                del self.alias[raw_id]
+        except AttributeError:
+            pass
