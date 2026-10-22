@@ -16,7 +16,6 @@ import {
   ArrowUpRight,
   Flame,
   LayoutGrid,
-  Flame,
 } from "lucide-react";
 import HomographyCalibrator from "./components/HomographyCalibrator";
 import VideoUploader from "./components/VideoUploader";
