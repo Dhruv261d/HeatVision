@@ -11,6 +11,7 @@ from .trajectory import TrajectoryManager
 from .bottom_center import calculate_bottom_center
 from .homography import apply_homography, parse_homography_matrix
 from .roi import is_point_inside_roi, draw_roi, parse_roi_points, is_valid_bbox
+from .get_person_zones import get_person_zones
 
 # Setup logger for pipeline exception handling & crash recovery (Issue #17)
 logger = logging.getLogger("HeatVision.VideoReader")
@@ -36,7 +37,8 @@ def get_track_color(track_id):
 
 def read_video(video_path=default_path, homography_matrix=None, show_preview=False,
                debug_video_path=None, conf_threshold=0.05, roi_points=None,
-               exit_zones=None, session_summaries=None, live_stream=True):
+               exit_zones=None, session_summaries=None, live_stream=True, zones=None,
+               blueprint_resolution=None):
     """
     Reads a video file frame-by-frame, performs YOLO person detection (Issue #20),
     ByteTrack tracking with ID recovery (Issues #23, #25), trajectory state and velocity
@@ -82,6 +84,72 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
 
     # Entrance/exit boundary polygons on the floorplan (Issue #26)
     parsed_exit_zones = [parse_roi_points(zone) for zone in exit_zones] if exit_zones else []
+
+    bp_w = 800
+    bp_h = 600
+    if blueprint_resolution and isinstance(blueprint_resolution, dict):
+        try:
+            bp_w = float(blueprint_resolution.get("width") or 800)
+            bp_h = float(blueprint_resolution.get("height") or 600)
+        except Exception:
+            bp_w, bp_h = 800, 600
+
+    zone_polygons = []
+    if zones and isinstance(zones, list):
+        for idx, zone in enumerate(zones):
+            if not isinstance(zone, dict):
+                continue
+            z_id = str(zone.get("id") or zone.get("_id") or f"zone_{idx+1}")
+            z_name = str(zone.get("name") or f"Zone {idx+1}")
+            z_type = str(zone.get("type", "custom"))
+
+            # Extract floorplan polygon points
+            floor_raw = zone.get("blueprintPolygon") or zone.get("points")
+            polygon_floor = None
+            if floor_raw and isinstance(floor_raw, list) and len(floor_raw) >= 3:
+                floor_pts = []
+                for p in floor_raw:
+                    if isinstance(p, dict):
+                        px, py = float(p.get("x", 0)), float(p.get("y", 0))
+                    elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                        px, py = float(p[0]), float(p[1])
+                    else:
+                        continue
+                    if px <= 1.0 and py <= 1.0:
+                        floor_pts.append([px * bp_w, py * bp_h])
+                    else:
+                        floor_pts.append([px, py])
+                if len(floor_pts) >= 3:
+                    polygon_floor = np.array(floor_pts, dtype=np.float32)
+
+            # Extract video polygon points
+            video_raw = zone.get("videoPolygon")
+            polygon_video = None
+            if video_raw and isinstance(video_raw, list) and len(video_raw) >= 3:
+                video_pts = []
+                for p in video_raw:
+                    if isinstance(p, dict):
+                        vx, vy = float(p.get("x", 0)), float(p.get("y", 0))
+                    elif isinstance(p, (list, tuple)) and len(p) >= 2:
+                        vx, vy = float(p[0]), float(p[1])
+                    else:
+                        continue
+                    if vx <= 1.0 and vy <= 1.0:
+                        video_pts.append([vx * frame_width, vy * frame_height])
+                    else:
+                        video_pts.append([vx, vy])
+                if len(video_pts) >= 3:
+                    polygon_video = np.array(video_pts, dtype=np.float32)
+
+            if polygon_floor is not None or polygon_video is not None:
+                zone_polygons.append({
+                    "id": z_id,
+                    "name": z_name,
+                    "type": z_type,
+                    "polygon_floor": polygon_floor,
+                    "polygon_video": polygon_video,
+                    "polygon": polygon_floor if polygon_floor is not None else polygon_video
+                })
 
     # Setup Debug Video Writer if requested (Issue #22)
     debug_writer = None
@@ -140,6 +208,18 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                 # Draw ROI overlay on frame (Issue #22)
                 draw_roi(frame, active_roi)
 
+                # Draw zone outlines on video frame
+                for zp in zone_polygons:
+                    poly_v = zp.get("polygon_video")
+                    if poly_v is not None and len(poly_v) >= 3:
+                        try:
+                            pts_i = np.int32(poly_v).reshape((-1, 1, 2))
+                            cv2.polylines(frame, [pts_i], isClosed=True, color=(236, 72, 153), thickness=2)
+                            cv2.putText(frame, zp["name"], (int(poly_v[0][0]) + 5, int(poly_v[0][1]) + 15),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (236, 72, 153), 1, cv2.LINE_AA)
+                        except Exception:
+                            pass
+
                 # Run person detection, then ByteTrack for persistent IDs (Issues #20, #23)
                 try:
                     results = detect_people(frame, conf=conf_threshold)
@@ -172,26 +252,43 @@ def read_video(video_path=default_path, homography_matrix=None, show_preview=Fal
                         # 3. Apply 3x3 Homography transformation (Issue #16)
                         u_floor, v_floor = apply_homography((x_feet, y_feet), H)
 
-                        # JSON Detection serialization (Issue #21)
+                        # 4. Identify zones containing this person's floorplan / video position
+                        person_zones = get_person_zones(
+                            u_floor,
+                            v_floor,
+                            zone_polygons,
+                            x_feet=x_feet,
+                            y_feet=y_feet
+                        )
+
+                        # 5. Serialize detection with zone information
                         frame_detections.append({
-                            'track_id': track_id,
-                            'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                            'feet': [float(x_feet), float(y_feet)],
-                            'floorplan_coords': [float(u_floor), float(v_floor)],
-                            'confidence': round(confidence, 2)
+                            "track_id": track_id,
+                            "bbox": [
+                                float(x1), float(y1),
+                                float(x2), float(y2)
+                            ],
+                            "feet": [float(x_feet), float(y_feet)],
+                            "floorplan_coords": [
+                                float(u_floor), float(v_floor)
+                            ],
+                            "confidence": round(confidence, 2),
+                            "zones": person_zones
                         })
 
                         # Collect observation for trajectory state (Issue #24)
                         observations.append({
                             'track_id': track_id,
                             'pixel': (x_feet, y_feet),
-                            'floor': (u_floor, v_floor)
+                            'floor': (u_floor, v_floor),
+                            'zones': person_zones
                         })
 
                         # Overlays: Bounding box with track-specific color and ID tag
                         color = get_track_color(track_id)
                         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-                        label = f"ID {track_id}"
+                        zone_str = f" [{person_zones[0]['zone_name']}]" if person_zones else ""
+                        label = f"ID {track_id}{zone_str}"
                         (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
                         cv2.rectangle(frame, (int(x1), int(y1) - lh - 6), (int(x1) + lw + 6, int(y1)), color, -1)
                         cv2.putText(frame, label, (int(x1) + 3, int(y1) - 4),

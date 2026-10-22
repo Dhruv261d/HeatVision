@@ -211,17 +211,12 @@ function App() {
                 </h1>
                 <p className="text-slate-400 text-sm max-w-xl leading-relaxed">
                   Welcome to HeatVision AI. Review live store metrics, calibrate
-                  cameras, or process new CCTV video batches below.
+                  cameras, or process new CCTV video batches below. Welcome to
+                  HeatVision AI. Review live store metrics, calibrate cameras,
+                  or process new CCTV video batches below.
                 </p>
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setActiveTab("calibration")}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-semibold rounded-xl transition flex items-center gap-2"
-                >
-                  <Target size={16} className="text-blue-400" />
-                  Calibrate
-                </button>
                 <button
                   onClick={() => setActiveTab("upload")}
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition shadow-lg shadow-blue-500/20 flex items-center gap-2"
@@ -239,10 +234,16 @@ function App() {
                   <span className="text-xs font-semibold uppercase tracking-wider">
                     Active Cameras
                   </span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Active Cameras
+                  </span>
                   <Video size={18} className="text-blue-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">4 / 4</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    100% Online
+                  </span>
                   <span className="text-xs text-emerald-400 font-medium">
                     100% Online
                   </span>
@@ -254,10 +255,16 @@ function App() {
                   <span className="text-xs font-semibold uppercase tracking-wider">
                     Footfall Count
                   </span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Footfall Count
+                  </span>
                   <Users size={18} className="text-purple-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">1,248</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    +12.4% today
+                  </span>
                   <span className="text-xs text-emerald-400 font-medium">
                     +12.4% today
                   </span>
@@ -269,10 +276,16 @@ function App() {
                   <span className="text-xs font-semibold uppercase tracking-wider">
                     Avg Dwell Time
                   </span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Avg Dwell Time
+                  </span>
                   <Clock size={18} className="text-amber-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">4.2 min</span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    Aisle A peak
+                  </span>
                   <span className="text-xs text-slate-400 font-medium">
                     Aisle A peak
                   </span>
@@ -284,10 +297,16 @@ function App() {
                   <span className="text-xs font-semibold uppercase tracking-wider">
                     Conversion Rate
                   </span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Conversion Rate
+                  </span>
                   <Activity size={18} className="text-emerald-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">24.8%</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    +3.2% vs yesterday
+                  </span>
                   <span className="text-xs text-emerald-400 font-medium">
                     +3.2% vs yesterday
                   </span>
@@ -330,6 +349,9 @@ function App() {
                   <h3 className="text-lg font-bold text-white">
                     Upload CCTV Video clips
                   </h3>
+                  <h3 className="text-lg font-bold text-white">
+                    Upload CCTV Video clips
+                  </h3>
                   <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
                     Batch-upload camera clips, join them using FFmpeg, and send
                     them to the YOLOv8 person detection pipeline.
@@ -341,13 +363,6 @@ function App() {
                 />
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Camera Calibration Tool View */}
-        {activeTab === "calibration" && (
-          <div className="w-full max-w-5xl">
-            <HomographyCalibrator />
           </div>
         )}
 

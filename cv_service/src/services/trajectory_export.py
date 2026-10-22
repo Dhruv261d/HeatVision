@@ -23,6 +23,7 @@ def build_trajectory_documents(session_summaries, camera_id):
             'camera_id': str(camera_id),
             'start_time': float(s['enter_time']),
             'end_time': float(s['exit_time']),
+            'zones_visited': s.get('zones_visited', []),
             'path': [
                 {'t': float(p['t']), 'x': float(p['x']), 'y': float(p['y'])}
                 for p in s.get('path', [])

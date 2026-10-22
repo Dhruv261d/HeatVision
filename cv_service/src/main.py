@@ -41,6 +41,8 @@ def main():
     parser.add_argument("--conf", type=float, default=0.05, help="Confidence threshold for YOLO person detection")
     parser.add_argument("--live-stream", action="store_true", help="Emit base64 preview frames via stdout")
     parser.add_argument("--check-setup", action="store_true", help="Run environment diagnostic check")
+    parser.add_argument("--zones", required=False, help="JSON string or file path to a list of zones on the floorplan")
+    parser.add_argument("--blueprint-resolution", required=False, help="JSON string or file path to blueprint resolution {width, height}")
 
     args = parser.parse_args()
 
@@ -88,6 +90,28 @@ def main():
         except Exception as e:
             logger.warning(f"Failed to parse exit zones input: {e}. Running without exit zones.")
 
+    zones = None
+    if args.zones:
+        try:
+            if os.path.exists(args.zones):
+                with open(args.zones, 'r', encoding='utf-8') as f:
+                    zones = json.load(f)
+            else:
+                zones = json.loads(args.zones)
+        except Exception as e:
+            logger.warning(f"Failed to parse zones input: {e}. Running without zones.")
+
+    blueprint_resolution = None
+    if args.blueprint_resolution:
+        try:
+            if os.path.exists(args.blueprint_resolution):
+                with open(args.blueprint_resolution, 'r', encoding='utf-8') as f:
+                    blueprint_resolution = json.load(f)
+            else:
+                blueprint_resolution = json.loads(args.blueprint_resolution)
+        except Exception as e:
+            logger.warning(f"Failed to parse blueprint resolution input: {e}.")
+
     logger.info(f"Starting HeatVision CV Pipeline for video: {video_path}")
 
     try:
@@ -101,7 +125,9 @@ def main():
             roi_points=roi_points,
             exit_zones=exit_zones,
             session_summaries=session_summaries,
-            live_stream=args.live_stream
+            live_stream=args.live_stream,
+            zones=zones,
+            blueprint_resolution=blueprint_resolution
         )
 
         if args.output:

@@ -28,6 +28,7 @@ class TrackHistory:
         self.seen_outside = False  # seen outside every exit zone (Issue #26)
         self.start_floor = None
         self.end_floor = None
+        self.zones_visited = set()
 
 
 class TrajectoryManager:
@@ -91,6 +92,9 @@ class TrajectoryManager:
             history.last_frame = frame_number
             history.last_time = timestamp
             history.end_floor = [float(floor[0]), float(floor[1])]
+            for z in obs.get('zones', []):
+                if isinstance(z, dict) and 'zone_name' in z:
+                    history.zones_visited.add(z['zone_name'])
             seen.add(track_id)
 
             motion[track_id] = {
@@ -143,6 +147,7 @@ class TrajectoryManager:
             'path_length': round(history.path_length, 2),
             'start_floor': history.start_floor,
             'end_floor': history.end_floor,
+            'zones_visited': sorted(list(history.zones_visited)),
             'path': [{'t': p['timestamp'], 'x': p['smoothed'][0], 'y': p['smoothed'][1]} for p in history.points],
         }
         self.completed.append(summary)

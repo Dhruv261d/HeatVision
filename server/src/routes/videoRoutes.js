@@ -67,7 +67,17 @@ router.post('/upload', (req, res) => {
     }));
 
     if (startProcessing) {
-      const jobId = queueJob(cameraId, uploadedFiles, homographyMatrix, mappingConfig, showPreview, roiPoints);
+      const jobId = await queueJob({
+        cameraId,
+        files: uploadedFiles,
+        homographyMatrix,
+        mappingConfig,
+        showPreview,
+        roiPoints,
+        zones: req.body.zones || mappingConfig?.zones,
+        storeId: req.body.storeId,
+        floorplanId: req.body.floorplanId,
+      });
       return res.status(200).json({
         success: true,
         message: 'Video batch uploaded and queued for processing with mapping',
@@ -88,9 +98,19 @@ router.post('/upload', (req, res) => {
 });
 
 // POST /api/videos/process - Start processing a specific queued video with its homography mapping
-router.post('/process', (req, res) => {
+router.post('/process', async (req, res) => {
   try {
-    const { cameraId = 'cam_1_entrance', files, homographyMatrix, mappingConfig, showPreview = true, roiPoints = null } = req.body;
+    const {
+      cameraId = 'cam_1_entrance',
+      files,
+      homographyMatrix,
+      mappingConfig,
+      showPreview = true,
+      roiPoints = null,
+      zones = null,
+      storeId = null,
+      floorplanId = null,
+    } = req.body;
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       return res.status(400).json({
@@ -120,8 +140,25 @@ router.post('/process', (req, res) => {
       } catch (e) {}
     }
 
+    let parsedZones = zones || parsedMapping?.zones || null;
+    if (typeof parsedZones === 'string') {
+      try {
+        parsedZones = JSON.parse(parsedZones);
+      } catch (e) {}
+    }
+
     const previewEnabled = showPreview !== false && showPreview !== 'false';
-    const jobId = queueJob(cameraId, files, parsedH, parsedMapping, previewEnabled, parsedRoi);
+    const jobId = await queueJob({
+      cameraId,
+      files,
+      homographyMatrix: parsedH,
+      mappingConfig: parsedMapping,
+      showPreview: previewEnabled,
+      roiPoints: parsedRoi,
+      zones: parsedZones,
+      storeId,
+      floorplanId,
+    });
 
     return res.status(200).json({
       success: true,
@@ -141,7 +178,7 @@ router.post('/process', (req, res) => {
 });
 
 // POST /api/videos/process-batch - Start processing a batch of jobs each with its own video & mapping
-router.post('/process-batch', (req, res) => {
+router.post('/process-batch', async (req, res) => {
   try {
     const { jobs } = req.body;
 
@@ -155,7 +192,17 @@ router.post('/process-batch', (req, res) => {
     const queuedJobIds = [];
 
     for (const jobItem of jobs) {
-      const { cameraId = 'cam_1_entrance', files, homographyMatrix, mappingConfig, showPreview = true, roiPoints = null } = jobItem;
+      const {
+        cameraId = 'cam_1_entrance',
+        files,
+        homographyMatrix,
+        mappingConfig,
+        showPreview = true,
+        roiPoints = null,
+        zones = null,
+        storeId = null,
+        floorplanId = null,
+      } = jobItem;
       if (files && files.length > 0) {
         let parsedH = homographyMatrix;
         if (typeof parsedH === 'string') {
@@ -169,9 +216,23 @@ router.post('/process-batch', (req, res) => {
         if (typeof parsedRoi === 'string') {
           try { parsedRoi = JSON.parse(parsedRoi); } catch (e) {}
         }
+        let parsedZones = zones || parsedMapping?.zones || null;
+        if (typeof parsedZones === 'string') {
+          try { parsedZones = JSON.parse(parsedZones); } catch (e) {}
+        }
 
         const previewEnabled = showPreview !== false && showPreview !== 'false';
-        const jobId = queueJob(cameraId, files, parsedH, parsedMapping, previewEnabled, parsedRoi);
+        const jobId = await queueJob({
+          cameraId,
+          files,
+          homographyMatrix: parsedH,
+          mappingConfig: parsedMapping,
+          showPreview: previewEnabled,
+          roiPoints: parsedRoi,
+          zones: parsedZones,
+          storeId,
+          floorplanId,
+        });
         queuedJobIds.push({ jobId, cameraId, mappingName: parsedMapping?.name || 'Homography' });
       }
     }

@@ -4,7 +4,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { concatenateClips } from "./ffmpegService.js";
 import { runCvScript } from "../cvRunner.js";
-
+import Zone from "../models/Zone.js";
+import { getZonedata } from "../utils/getZonedata.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,14 +18,59 @@ export const initQueueSocket = (io) => {
   ioInstance = io;
 };
 
-export const queueJob = (
-  cameraId,
-  files,
-  homographyMatrix = null,
-  mappingConfig = null,
-  showPreview = true,
-  roiPoints = null,
+export const queueJob = async (
+  arg1,
+  filesArg,
+  arg3,
+  arg4,
+  arg5,
+  arg6,
+  arg7,
+  arg8,
 ) => {
+  let cameraId = "cam_1_entrance";
+  let files = [];
+  let storeId = null;
+  let floorplanId = null;
+  let homographyMatrix = null;
+  let mappingConfig = null;
+  let showPreview = true;
+  let roiPoints = null;
+  let zones = null;
+
+  if (arg1 && typeof arg1 === "object" && !Array.isArray(arg1)) {
+    // Called with options object
+    cameraId = arg1.cameraId || cameraId;
+    files = arg1.files || [];
+    storeId = arg1.storeId || null;
+    floorplanId = arg1.floorplanId || null;
+    homographyMatrix = arg1.homographyMatrix || null;
+    mappingConfig = arg1.mappingConfig || null;
+    showPreview = arg1.showPreview !== false;
+    roiPoints = arg1.roiPoints || null;
+    zones = arg1.zones || null;
+  } else {
+    // Called with positional arguments
+    cameraId = arg1 || cameraId;
+    files = filesArg || [];
+
+    if (typeof arg3 === "string" && /^[0-9a-fA-F]{24}$/.test(arg3)) {
+      storeId = arg3;
+      floorplanId = arg4;
+      homographyMatrix = arg5;
+      mappingConfig = arg6;
+      showPreview = arg7 !== false;
+      roiPoints = arg8;
+    } else {
+      homographyMatrix = arg3 || null;
+      mappingConfig = arg4 || null;
+      showPreview = arg5 !== false && arg5 !== "false";
+      roiPoints = arg6 || null;
+      zones = arg7 || null;
+      storeId = arg8 || null;
+    }
+  }
+
   const jobId = `job_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   // Automatically extract calibrated videoPoints as ROI if roiPoints not explicitly provided
@@ -38,6 +84,18 @@ export const queueJob = (
     }
   }
 
+  let effectiveZones = zones || mappingConfig?.zones || null;
+  if ((!effectiveZones || effectiveZones.length === 0) && storeId) {
+    try {
+      const dbZones = await getZonedata({ storeId, floorplanId });
+      if (Array.isArray(dbZones) && dbZones.length > 0) {
+        effectiveZones = dbZones;
+      }
+    } catch (e) {
+      console.warn("[queueService] Could not fetch DB zones:", e.message);
+    }
+  }
+
   const job = {
     id: jobId,
     cameraId,
@@ -45,6 +103,7 @@ export const queueJob = (
     homographyMatrix,
     mappingConfig,
     roiPoints: effectiveRoi,
+    zones: effectiveZones || [],
     showPreview: showPreview !== false,
     status: "pending", // pending, concatenating, processing, completed, failed
     progress: 0,
@@ -52,7 +111,7 @@ export const queueJob = (
     totalFrames: 0,
     createdAt: new Date().toISOString(),
   };
-  console.log("in job queue;", job);
+  console.log("in job queue:", job);
 
   jobsMap.set(jobId, job);
   jobQueue.push(jobId);
@@ -117,6 +176,8 @@ const processNextJob = async () => {
       liveStream: true,
       homographyMatrix: job.homographyMatrix || null,
       roiPoints: job.roiPoints || null,
+      zones: job.zones || [],
+      blueprintResolution: job.mappingConfig?.blueprintResolution || null,
       onFrame: (frameBase64) => {
         if (ioInstance) {
           ioInstance.emit("processing:frame", {

@@ -23,6 +23,7 @@ import {
   PlusCircle,
 } from "lucide-react";
 import HomographyCalibrator from "./HomographyCalibrator";
+import UnifiedCalibrationZoneEditor from "./UnifiedCalibrationZoneEditor";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const socket = io(API_BASE_URL, { autoConnect: false });
@@ -474,7 +475,12 @@ export default function VideoUploader() {
         f.id === videoId
           ? {
               ...f,
-              mapping: calibrationPayload,
+              mapping: {
+                ...(f.mapping || {}),
+                ...calibrationPayload,
+                zones:
+                  calibrationPayload.zones || f.mapping?.zones || f.zones || [],
+              },
               mappingStatus: "mapped",
               camera: calibrationPayload.camera || f.camera,
             }
@@ -489,28 +495,49 @@ export default function VideoUploader() {
   };
 
   /**
+   * Callback when zones are updated for a specific queued video
+   */
+  const handleSaveZonesForVideo = (videoId, zonesList) => {
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === videoId
+          ? {
+              ...f,
+              zones: zonesList,
+              mapping: {
+                ...(f.mapping || {}),
+                zones: zonesList,
+              },
+            }
+          : f,
+      ),
+    );
+    showToast(`Saved ${zonesList.length} zone(s) for video!`, "success");
+  };
+
+  /**
    * Save a newly defined mapping to reusable store presets
    */
-  const handleSaveNewPreset = async (newPreset) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/caligraphy/presets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPreset),
-      });
+  // const handleSaveNewPreset = async (newPreset) => {
+  //   try {
+  //     const res = await fetch(`${API_BASE_URL}/api/caligraphy/presets`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(newPreset),
+  //     });
 
-      if (res.ok) {
-        const data = await res.json();
-        setStorePresets((prev) => [...prev, data.preset]);
-      } else {
-        // Fallback local persistence
-        setStorePresets((prev) => [...prev, newPreset]);
-      }
-    } catch (err) {
-      console.warn("Could not save preset to server, storing locally:", err);
-      setStorePresets((prev) => [...prev, newPreset]);
-    }
-  };
+  //     if (res.ok) {
+  //       const data = await res.json();
+  //       setStorePresets((prev) => [...prev, data.preset]);
+  //     } else {
+  //       // Fallback local persistence
+  //       setStorePresets((prev) => [...prev, newPreset]);
+  //     }
+  //   } catch (err) {
+  //     console.warn("Could not save preset to server, storing locally:", err);
+  //     setStorePresets((prev) => [...prev, newPreset]);
+  //   }
+  // };
 
   /**
    * Starts processing the batch once EVERY video has a valid mapping.
@@ -581,6 +608,7 @@ export default function VideoUploader() {
           homographyMatrix: item.mapping?.HMatrix,
           mappingConfig: item.mapping,
           roiPoints,
+          zones: item.mapping?.zones || item.zones || [],
           showPreview: showDesktopPreview,
         };
 
@@ -761,7 +789,7 @@ export default function VideoUploader() {
                       saved.
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <button
                       onClick={() =>
                         setPreviewVideoModal(
@@ -793,7 +821,7 @@ export default function VideoUploader() {
                     >
                       <X size={15} />
                     </button>
-                  </div>
+                  </div> */}
                 </div>
               )}
             </div>
@@ -834,13 +862,6 @@ export default function VideoUploader() {
                 onClick={handleBrowseClick}
               >
                 <FolderOpen size={16} className="inline mr-2" /> Browse Files
-              </button>
-              <button
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm font-medium text-slate-200 transition flex items-center gap-2"
-                onClick={() => setIsStandaloneCalibratorOpen(true)}
-              >
-                <Target size={16} className="text-blue-400" />
-                Open Calibrator Tool
               </button>
             </div>
             <input
@@ -1182,36 +1203,36 @@ export default function VideoUploader() {
       {calibratingVideoId && currentCalibratingVideo && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
           <div className="relative w-full max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 sm:p-4 animate-fadeIn">
-            <HomographyCalibrator
+            <UnifiedCalibrationZoneEditor
               videoItem={currentCalibratingVideo}
-              initialConfig={currentCalibratingVideo.mapping}
-              presets={storePresets}
-              onSaveCalibration={(calibData) =>
+              onClose={() => setCalibratingVideoId(null)}
+              initialConfig={{
+                id: currentCalibratingVideo.mapping?.id,
+                name: currentCalibratingVideo.mapping?.name,
+                videoSrc: currentCalibratingVideo.mapping?.videoSrc,
+                blueprintSrc: currentCalibratingVideo.mapping?.blueprintSrc,
+                videoPoints: currentCalibratingVideo.mapping?.videoPoints,
+                blueprintPoints:
+                  currentCalibratingVideo.mapping?.blueprintPoints,
+                videoResolution:
+                  currentCalibratingVideo.mapping?.videoResolution,
+                blueprintResolution:
+                  currentCalibratingVideo.mapping?.blueprintResolution,
+                HMatrix: currentCalibratingVideo.mapping?.HMatrix,
+                zones:
+                  currentCalibratingVideo.mapping?.zones ||
+                  currentCalibratingVideo.zones ||
+                  [],
+              }}
+              onSaveCalibration={(calibrationPayload) =>
                 handleSaveCalibrationForVideo(
                   currentCalibratingVideo.id,
-                  calibData,
+                  calibrationPayload,
                 )
               }
-              onSaveAsPreset={handleSaveNewPreset}
-              onClose={() => setCalibratingVideoId(null)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Standalone Homography Calibrator Modal (for General Preset Creation) */}
-      {isStandaloneCalibratorOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 sm:p-4 animate-fadeIn">
-            <HomographyCalibrator
-              presets={storePresets}
-              onSaveCalibration={(calibData) => {
-                handleSaveNewPreset(calibData);
-                setIsStandaloneCalibratorOpen(false);
-                showToast(`Saved preset "${calibData.name}"!`, "success");
-              }}
-              onSaveAsPreset={handleSaveNewPreset}
-              onClose={() => setIsStandaloneCalibratorOpen(false)}
+              onSaveZones={(savedZones) =>
+                handleSaveZonesForVideo(currentCalibratingVideo.id, savedZones)
+              }
             />
           </div>
         </div>
