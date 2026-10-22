@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import {
   Menu,
   X,
@@ -15,9 +14,13 @@ import {
   Clock,
   Activity,
   ArrowUpRight,
+  Flame,
 } from "lucide-react";
 import HomographyCalibrator from "./components/HomographyCalibrator";
 import VideoUploader from "./components/VideoUploader";
+import FloorplanHeatmap from "./features/heatmap/FloorplanHeatmap";
+import HeatmapStudio from "./features/heatmap/HeatmapStudio";
+import { useState, useEffect } from "react";
 // import "./App.css";
 
 function App() {
@@ -74,8 +77,9 @@ function App() {
 
       {/* Navigation Sidebar */}
       <aside
-        className={`sidebar fixed top-0 left-0 h-full w-72 bg-slate-800/95 border-r border-slate-700/80 z-50 transform transition-transform duration-300 ease-in-out p-5 flex flex-col justify-between shadow-2xl ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+        className={`sidebar fixed top-0 left-0 h-full w-72 bg-slate-800/95 border-r border-slate-700/80 z-50 transform transition-transform duration-300 ease-in-out p-5 flex flex-col justify-between shadow-2xl ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         <div>
           <div className="sidebar-header flex items-center justify-between pb-4 border-b border-slate-700/60 mb-6">
@@ -100,10 +104,11 @@ function App() {
 
           <nav className="side-navigation flex flex-col gap-1.5">
             <button
-              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "home"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
-                }`}
+              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                activeTab === "home"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`}
               onClick={() => {
                 setActiveTab("home");
                 setSidebarOpen(false);
@@ -114,10 +119,11 @@ function App() {
             </button>
 
             <button
-              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "calibration"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
-                }`}
+              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                activeTab === "calibration"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`}
               onClick={() => {
                 setActiveTab("calibration");
                 setSidebarOpen(false);
@@ -128,10 +134,11 @@ function App() {
             </button>
 
             <button
-              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === "upload"
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
-                }`}
+              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                activeTab === "upload"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`}
               onClick={() => {
                 setActiveTab("upload");
                 setSidebarOpen(false);
@@ -139,6 +146,20 @@ function App() {
             >
               <Upload size={19} />
               <span>Upload CCTV Footage</span>
+            </button>
+            <button
+              className={`nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                activeTab === "heatmap"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`}
+              onClick={() => {
+                setActiveTab("heatmap");
+                setSidebarOpen(false);
+              }}
+            >
+              <Flame size={19} className="text-orange-400" />
+              <span>Floorplan Heatmap</span>
             </button>
 
             <button className="nav-item flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm text-slate-400 hover:bg-slate-700/40 hover:text-slate-200 transition-all">
@@ -189,7 +210,8 @@ function App() {
                   Spatial Analytics Dashboard
                 </h1>
                 <p className="text-slate-400 text-sm max-w-xl leading-relaxed">
-                  Welcome to HeatVision AI. Review live store metrics, calibrate cameras, or process new CCTV video batches below.
+                  Welcome to HeatVision AI. Review live store metrics, calibrate
+                  cameras, or process new CCTV video batches below.
                 </p>
               </div>
               <div className="flex gap-3">
@@ -214,45 +236,61 @@ function App() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700/40 text-left space-y-3">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Active Cameras</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Active Cameras
+                  </span>
                   <Video size={18} className="text-blue-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">4 / 4</span>
-                  <span className="text-xs text-emerald-400 font-medium">100% Online</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    100% Online
+                  </span>
                 </div>
               </div>
 
               <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700/40 text-left space-y-3">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Footfall Count</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Footfall Count
+                  </span>
                   <Users size={18} className="text-purple-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">1,248</span>
-                  <span className="text-xs text-emerald-400 font-medium">+12.4% today</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    +12.4% today
+                  </span>
                 </div>
               </div>
 
               <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700/40 text-left space-y-3">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Avg Dwell Time</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Avg Dwell Time
+                  </span>
                   <Clock size={18} className="text-amber-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">4.2 min</span>
-                  <span className="text-xs text-slate-400 font-medium">Aisle A peak</span>
+                  <span className="text-xs text-slate-400 font-medium">
+                    Aisle A peak
+                  </span>
                 </div>
               </div>
 
               <div className="bg-slate-800/40 p-5 rounded-xl border border-slate-700/40 text-left space-y-3">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-xs font-semibold uppercase tracking-wider">Conversion Rate</span>
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    Conversion Rate
+                  </span>
                   <Activity size={18} className="text-emerald-400" />
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold">24.8%</span>
-                  <span className="text-xs text-emerald-400 font-medium">+3.2% vs yesterday</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    +3.2% vs yesterday
+                  </span>
                 </div>
               </div>
             </div>
@@ -267,12 +305,18 @@ function App() {
                   <div className="p-3 bg-blue-500/10 rounded-xl inline-flex text-blue-400 group-hover:bg-blue-500/20 transition">
                     <Target size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-white">Camera Homography Calibration</h3>
+                  <h3 className="text-lg font-bold text-white">
+                    Camera Homography Calibration
+                  </h3>
                   <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-                    Configure and map video coordinates directly to a 2D floorplan blueprint for real-world coordinate tracking.
+                    Configure and map video coordinates directly to a 2D
+                    floorplan blueprint for real-world coordinate tracking.
                   </p>
                 </div>
-                <ArrowUpRight size={20} className="text-slate-500 group-hover:text-white transition" />
+                <ArrowUpRight
+                  size={20}
+                  className="text-slate-500 group-hover:text-white transition"
+                />
               </div>
 
               <div
@@ -283,12 +327,18 @@ function App() {
                   <div className="p-3 bg-purple-500/10 rounded-xl inline-flex text-purple-400 group-hover:bg-purple-500/20 transition">
                     <Upload size={24} />
                   </div>
-                  <h3 className="text-lg font-bold text-white">Upload CCTV Video clips</h3>
+                  <h3 className="text-lg font-bold text-white">
+                    Upload CCTV Video clips
+                  </h3>
                   <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-                    Batch-upload camera clips, join them using FFmpeg, and send them to the YOLOv8 person detection pipeline.
+                    Batch-upload camera clips, join them using FFmpeg, and send
+                    them to the YOLOv8 person detection pipeline.
                   </p>
                 </div>
-                <ArrowUpRight size={20} className="text-slate-500 group-hover:text-white transition" />
+                <ArrowUpRight
+                  size={20}
+                  className="text-slate-500 group-hover:text-white transition"
+                />
               </div>
             </div>
           </div>
@@ -305,6 +355,19 @@ function App() {
         {activeTab === "upload" && (
           <div className="w-full max-w-5xl">
             <VideoUploader />
+          </div>
+        )}
+        {/* Floorplan Heatmap View */}
+        {activeTab === "heatmap" && (
+          <div className="w-full max-w-6xl animate-fadeIn">
+            <FloorplanHeatmap />
+          </div>
+        )}
+
+        {/* Heatmap Studio on the Home Dashboard */}
+        {activeTab === "home" && (
+          <div className="w-full max-w-5xl mt-8">
+            <HeatmapStudio />
           </div>
         )}
       </main>
