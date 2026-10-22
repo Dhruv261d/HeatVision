@@ -15,17 +15,197 @@ import {
   Activity,
   ArrowUpRight,
   Flame,
+  LayoutGrid,
+  Flame,
 } from "lucide-react";
 import HomographyCalibrator from "./components/HomographyCalibrator";
 import VideoUploader from "./components/VideoUploader";
 import FloorplanHeatmap from "./features/heatmap/FloorplanHeatmap";
 import HeatmapStudio from "./features/heatmap/HeatmapStudio";
 import { useState, useEffect } from "react";
-// import "./App.css";
+
+const API_BASE = "http://localhost:5000/api";
+
+const INITIAL_BLUEPRINTS = [
+  {
+    id: "bp-main",
+    name: "Main Floorplan (800x600)",
+    url: "/sample-blueprint.jpg",
+    zones: [
+      {
+        id: "z-1",
+        name: "Aisle 1: Produce",
+        type: "shelf",
+        shape: "rectangle",
+        points: [
+          [0.15, 0.19],
+          [0.6, 0.19],
+          [0.6, 0.27],
+          [0.15, 0.27],
+        ],
+      },
+      {
+        id: "z-2",
+        name: "Aisle 2: Beverages",
+        type: "shelf",
+        shape: "rectangle",
+        points: [
+          [0.15, 0.35],
+          [0.6, 0.35],
+          [0.6, 0.43],
+          [0.15, 0.43],
+        ],
+      },
+      {
+        id: "z-3",
+        name: "Entrance / Checkout",
+        type: "billing",
+        shape: "rectangle",
+        points: [
+          [0.12, 0.67],
+          [0.35, 0.67],
+          [0.35, 0.8],
+          [0.12, 0.8],
+        ],
+      },
+    ],
+  },
+  {
+    id: "bp-cctv",
+    name: "Store 2D Floor Plan (CCTV)",
+    url: "/sample_blueprint 2.png",
+    zones: [],
+  },
+];
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("home"); // 'home' | 'calibration' | 'upload'
+  const [activeTab, setActiveTab] = useState("home"); // 'home' | 'calibration' | 'upload' | 'zones' | 'heatmap'
+  const [blueprints, setBlueprints] = useState(INITIAL_BLUEPRINTS);
+  const [heatmapPoints, setHeatmapPoints] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchInitialData = async () => {
+      // 1. Fetch blueprints
+      try {
+        const res = await fetch(`${API_BASE}/blueprints`);
+        if (res.ok) {
+          const result = await res.json();
+          if (
+            isMounted &&
+            result.success &&
+            result.data &&
+            result.data.length > 0
+          ) {
+            setBlueprints((prev) => {
+              const apiIds = new Set(result.data.map((b) => b.id));
+              const filteredDefaults = prev.filter((p) => !apiIds.has(p.id));
+              return [...result.data, ...filteredDefaults];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "[App] Using default blueprints (backend offline):",
+          err.message,
+        );
+      }
+
+      // 2. Fetch real CV heatmap tracking points
+      try {
+        const res = await fetch(`${API_BASE}/heatmap/points`);
+        if (res.ok) {
+          const result = await res.json();
+          if (
+            isMounted &&
+            result.success &&
+            result.points &&
+            result.points.length > 0
+          ) {
+            console.log(
+              `[App] Loaded ${result.count} real CV heatmap points from ${result.source}`,
+            );
+            setHeatmapPoints(result.points);
+          }
+        }
+      } catch (err) {
+        console.warn(
+          "[App] Could not load real CV heatmap points, using demo:",
+          err.message,
+        );
+      }
+    };
+
+    fetchInitialData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleUploadBlueprint = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append("blueprint", file);
+      formData.append("name", file.name.replace(/\.[^/.]+$/, ""));
+      formData.append("storeName", "Main Retail Store");
+
+      const res = await fetch(`${API_BASE}/blueprints`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed with status " + res.status);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message);
+
+      const createdBp = json.data;
+      setBlueprints((prev) => [createdBp, ...prev]);
+      return createdBp;
+    } catch (err) {
+      console.warn(
+        "[App] Blueprint upload to server failed, falling back to local URL:",
+        err.message,
+      );
+      const fallbackBp = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        url: URL.createObjectURL(file),
+        zones: [],
+      };
+      setBlueprints((prev) => [fallbackBp, ...prev]);
+      return fallbackBp;
+    }
+  };
+
+  const handleSaveZones = async (blueprintId, zones) => {
+    try {
+      // If this is a backend-persisted blueprint (MongoDB 24-char hex id), save to DB
+      if (/^[0-9a-fA-F]{24}$/.test(blueprintId)) {
+        const res = await fetch(`${API_BASE}/blueprints/${blueprintId}/zones`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ zones }),
+        });
+        if (!res.ok)
+          throw new Error("Saving zones failed with status " + res.status);
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message);
+      }
+
+      // Update in local state
+      setBlueprints((prev) =>
+        prev.map((b) => (b.id === blueprintId ? { ...b, zones } : b)),
+      );
+    } catch (err) {
+      console.error("[App] Error saving zones to API:", err);
+      // Still update local state so the user's edits are preserved
+      setBlueprints((prev) =>
+        prev.map((b) => (b.id === blueprintId ? { ...b, zones } : b)),
+      );
+      throw err;
+    }
+  };
 
   return (
     <div className="app min-h-screen bg-slate-900 text-white flex flex-col font-sans">

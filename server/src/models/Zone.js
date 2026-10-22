@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import mongoose from "mongoose";
 const zoneSchema = new mongoose.Schema(
   {
@@ -9,26 +10,47 @@ const zoneSchema = new mongoose.Schema(
     floorplanId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Floorplan",
-      required: true,
-    },
-    name: {
+      required: true,{
       type: String,
       required: true,
     },
+
     type: {
       type: String,
-      enum: ["shelf", "aisle", "billing", "entrance", "custom"],
-      default: "custom",
+      enum: ['shelf', 'aisle', 'billing', 'entrance', 'custom'],
+      default: 'shelf',
     },
-    points: [
-      {
-        x: { type: Number, required: true },
-        y: { type: Number, required: true },
+    shape: {
+      type: String,
+      enum: ['rectangle', 'polygon'],
+      default: 'polygon',
+    },
+    points: {
+      type: [[Number]],
+      required: true,
+      validate: {
+        validator: function (pts) {
+          return Array.isArray(pts) && pts.length >= 3;
+        },
+        message: 'A zone must have at least 3 points',
       },
-    ],
+    },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  }
 );
 
-const Zone = mongoose.model("Zone", zoneSchema);
+zoneSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    ret.id = ret._id.toString();
+    ret.blueprintId = ret.blueprintId?.toString();
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+const Zone = mongoose.model('Zone', zoneSchema);
+
 export default Zone;
