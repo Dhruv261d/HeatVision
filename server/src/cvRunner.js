@@ -37,6 +37,7 @@ export function runCvScript({
   roiPoints,
   zones,
   blueprintResolution,
+  blueprintPath,
   onLog,
   onError,
   onProgress,
@@ -118,6 +119,10 @@ export function runCvScript({
 
   if (blueprintResolution) {
     args.push("--blueprint-resolution", JSON.stringify(blueprintResolution));
+  }
+
+  if (blueprintPath && fs.existsSync(blueprintPath)) {
+    args.push("--blueprint", blueprintPath);
   }
 
   console.log(

@@ -148,7 +148,16 @@ class TrajectoryManager:
             'start_floor': history.start_floor,
             'end_floor': history.end_floor,
             'zones_visited': sorted(list(history.zones_visited)),
-            'path': [{'t': p['timestamp'], 'x': p['smoothed'][0], 'y': p['smoothed'][1]} for p in history.points],
+            'path': [
+                {
+                    't': p['timestamp'],
+                    'x': round(p['pixel'][0], 2) if 'pixel' in p else round(p['smoothed'][0], 2),
+                    'y': round(p['pixel'][1], 2) if 'pixel' in p else round(p['smoothed'][1], 2),
+                    'floor_x': round(p['smoothed'][0], 2),
+                    'floor_y': round(p['smoothed'][1], 2),
+                }
+                for p in history.points
+            ],
         }
         self.completed.append(summary)
         logger.info(f"Session completed: ID {track_id} ({reason}), dwell {summary['dwell_time']}s")

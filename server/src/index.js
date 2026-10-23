@@ -31,13 +31,27 @@ connectCloudinary();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Dynamic CORS origin checker to support Vite on port 5173, 5174, etc.
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) return true;
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+};
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+};
+
 // 3. Create HTTP Server & Initialize Socket.io (Issue 12)
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
-  },
+  cors: corsOptions,
 });
 
 // Pass Socket.io instance to Queue Service for real-time broadcasts
@@ -47,17 +61,14 @@ initQueueSocket(io);
 app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 app.use(morgan('dev'));
 
-// Static uploads serving for annotated debug videos
+// Static uploads serving for annotated debug videos and generated dual heatmaps
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+app.use('/uploads/heatmaps', express.static(path.resolve(__dirname, '../uploads/heatmaps')));
 app.use('/data/uploads', express.static(path.resolve(__dirname, '../../data/uploads')));
+app.use('/data/processed', express.static(path.resolve(__dirname, '../../data/processed')));
 
 // Express body parsers
 app.use(express.json({ limit: '50mb' }));

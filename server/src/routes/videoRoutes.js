@@ -77,6 +77,7 @@ router.post('/upload', (req, res) => {
         zones: req.body.zones || mappingConfig?.zones,
         storeId: req.body.storeId,
         floorplanId: req.body.floorplanId,
+        blueprintSrc: req.body.blueprintSrc || mappingConfig?.blueprintSrc || null,
       });
       return res.status(200).json({
         success: true,
@@ -158,6 +159,7 @@ router.post('/process', async (req, res) => {
       zones: parsedZones,
       storeId,
       floorplanId,
+      blueprintSrc: req.body.blueprintSrc || parsedMapping?.blueprintSrc || null,
     });
 
     return res.status(200).json({

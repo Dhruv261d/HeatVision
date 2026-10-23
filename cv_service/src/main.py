@@ -8,7 +8,6 @@ import numpy as np
 
 from services.video_reader import read_video
 from services.trajectory_export import export_trajectories
-
 # Configured logging format
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +42,7 @@ def main():
     parser.add_argument("--check-setup", action="store_true", help="Run environment diagnostic check")
     parser.add_argument("--zones", required=False, help="JSON string or file path to a list of zones on the floorplan")
     parser.add_argument("--blueprint-resolution", required=False, help="JSON string or file path to blueprint resolution {width, height}")
+    parser.add_argument("--blueprint", required=False, help="Path to store blueprint/floorplan image file")
 
     args = parser.parse_args()
 
@@ -148,6 +148,37 @@ def main():
         try:
             result = export_trajectories(session_summaries, video_path, camera_id=args.camera or "default")
             logger.info(f"Trajectory export: {result['exported']} saved, {result['rejected']} rejected -> {result['file']}")
+
+            # Automatically pass saved trajectories to heatmap generator (Issue #28 / Dual Heatmaps)
+            if result.get('file') and os.path.exists(result['file']):
+                try:
+                    from services.heatmap_generator import generate_dual_heatmaps
+
+                    clean_frame = None
+                    if video_path and os.path.exists(video_path):
+                        cap = cv2.VideoCapture(video_path)
+                        ret, f = cap.read()
+                        if ret and f is not None:
+                            clean_frame = f
+                        cap.release()
+
+                    heatmap_dir = os.path.dirname(result['file'])
+                    hm_outputs = generate_dual_heatmaps(
+                        trajectory_file=result['file'],
+                        video_frame=clean_frame,
+                        video_frame_path=video_path,
+                        blueprint_path=args.blueprint,
+                        homography=homography_matrix,
+                        output_dir=heatmap_dir,
+                        zones=zones
+                    )
+                    logger.info(
+                        f"Automatic dual heatmap generation completed successfully: "
+                        f"Video overlay -> {hm_outputs['video_overlay']} | "
+                        f"Blueprint overlay -> {hm_outputs['blueprint_overlay']}"
+                    )
+                except Exception as hm_err:
+                    logger.error(f"Automatic dual heatmap generation failed: {hm_err}", exc_info=True)
         except Exception as export_err:
             logger.error(f"Trajectory export failed: {export_err}")
 

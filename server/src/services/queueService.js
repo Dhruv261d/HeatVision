@@ -38,6 +38,8 @@ export const queueJob = async (
   let roiPoints = null;
   let zones = null;
 
+  let blueprintSrc = null;
+
   if (arg1 && typeof arg1 === "object" && !Array.isArray(arg1)) {
     // Called with options object
     cameraId = arg1.cameraId || cameraId;
@@ -49,6 +51,7 @@ export const queueJob = async (
     showPreview = arg1.showPreview !== false;
     roiPoints = arg1.roiPoints || null;
     zones = arg1.zones || null;
+    blueprintSrc = arg1.blueprintSrc || arg1.mappingConfig?.blueprintSrc || null;
   } else {
     // Called with positional arguments
     cameraId = arg1 || cameraId;
@@ -61,6 +64,7 @@ export const queueJob = async (
       mappingConfig = arg6;
       showPreview = arg7 !== false;
       roiPoints = arg8;
+      blueprintSrc = mappingConfig?.blueprintSrc || null;
     } else {
       homographyMatrix = arg3 || null;
       mappingConfig = arg4 || null;
@@ -68,6 +72,7 @@ export const queueJob = async (
       roiPoints = arg6 || null;
       zones = arg7 || null;
       storeId = arg8 || null;
+      blueprintSrc = mappingConfig?.blueprintSrc || null;
     }
   }
 
@@ -104,6 +109,7 @@ export const queueJob = async (
     mappingConfig,
     roiPoints: effectiveRoi,
     zones: effectiveZones || [],
+    blueprintSrc: blueprintSrc || mappingConfig?.blueprintSrc || null,
     showPreview: showPreview !== false,
     status: "pending", // pending, concatenating, processing, completed, failed
     progress: 0,
@@ -167,6 +173,64 @@ const processNextJob = async () => {
       `annotated_${job.id}.mp4`,
     );
 
+    // Resolve blueprint image from job mapping if provided
+    let effectiveBlueprintPath = null;
+    const rawBp = job.blueprintSrc || job.mappingConfig?.blueprintSrc;
+    if (rawBp && typeof rawBp === "string") {
+      if (rawBp.startsWith("data:image")) {
+        try {
+          const commaIdx = rawBp.indexOf(",");
+          if (commaIdx !== -1) {
+            const header = rawBp.substring(0, commaIdx);
+            const base64Data = rawBp.substring(commaIdx + 1);
+            let ext = "png";
+            if (header.includes("jpeg") || header.includes("jpg")) ext = "jpg";
+            else if (header.includes("webp")) ext = "webp";
+            const bpFilePath = path.join(tempOutputDir, `blueprint_${job.id}.${ext}`);
+            fs.writeFileSync(bpFilePath, Buffer.from(base64Data, "base64"));
+            effectiveBlueprintPath = bpFilePath;
+            console.log(`[queueService] Saved base64 blueprint to ${bpFilePath}`);
+          }
+        } catch (bpErr) {
+          console.warn("[queueService] Could not write base64 blueprint:", bpErr.message);
+        }
+      } else if (fs.existsSync(rawBp)) {
+        effectiveBlueprintPath = rawBp;
+      } else {
+        let pathname = rawBp;
+        try {
+          if (rawBp.startsWith("http://") || rawBp.startsWith("https://")) {
+            pathname = new URL(rawBp).pathname;
+          }
+        } catch (e) {}
+        const cleaned = pathname.replace(/^\/+/, "").replace(/^uploads\//, "");
+        const basename = path.basename(pathname);
+        const candidates = [
+          path.resolve(__dirname, "../../../client/public", cleaned),
+          path.resolve(__dirname, "../../../client/public", basename),
+          path.resolve(__dirname, "../../uploads", cleaned),
+          path.resolve(__dirname, "../../uploads", basename),
+          path.resolve(__dirname, "../../../data/uploads/blueprints", basename),
+          path.resolve(__dirname, "../../../data/processed", basename),
+          path.resolve(__dirname, "../../../client/public/sample-blueprint.jpg"),
+        ];
+        for (const cand of candidates) {
+          if (fs.existsSync(cand)) {
+            effectiveBlueprintPath = cand;
+            break;
+          }
+        }
+      }
+    }
+
+    // Ultimate fallback if no blueprint was provided
+    if (!effectiveBlueprintPath || !fs.existsSync(effectiveBlueprintPath)) {
+      const defaultBp = path.resolve(__dirname, "../../../client/public/sample-blueprint.jpg");
+      if (fs.existsSync(defaultBp)) {
+        effectiveBlueprintPath = defaultBp;
+      }
+    }
+
     runCvScript({
       videoPath: inputVideoPath,
       cameraId: job.cameraId,
@@ -178,6 +242,7 @@ const processNextJob = async () => {
       roiPoints: job.roiPoints || null,
       zones: job.zones || [],
       blueprintResolution: job.mappingConfig?.blueprintResolution || null,
+      blueprintPath: effectiveBlueprintPath,
       onFrame: (frameBase64) => {
         if (ioInstance) {
           ioInstance.emit("processing:frame", {
@@ -221,6 +286,23 @@ const processNextJob = async () => {
             ? `/uploads/temp/annotated_${job.id}.mp4`
             : null;
           job.annotatedVideoUrl = relativeAnnotatedUrl;
+
+          // Copy blueprint to latest_blueprint for heatmap viewers
+          if (effectiveBlueprintPath && fs.existsSync(effectiveBlueprintPath)) {
+            try {
+              const dest1 = path.resolve(__dirname, "../../uploads/heatmaps/latest_blueprint.png");
+              const dest2 = path.resolve(__dirname, "../../../data/processed/latest_blueprint.png");
+              const dest3 = path.resolve(__dirname, "../../../client/public/latest_blueprint.png");
+              fs.mkdirSync(path.dirname(dest1), { recursive: true });
+              fs.mkdirSync(path.dirname(dest2), { recursive: true });
+              fs.mkdirSync(path.dirname(dest3), { recursive: true });
+              fs.copyFileSync(effectiveBlueprintPath, dest1);
+              fs.copyFileSync(effectiveBlueprintPath, dest2);
+              fs.copyFileSync(effectiveBlueprintPath, dest3);
+            } catch (cpErr) {
+              console.warn("[queueService] Could not mirror latest blueprint:", cpErr.message);
+            }
+          }
 
           if (ioInstance) {
             ioInstance.emit("processing:complete", {

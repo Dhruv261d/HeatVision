@@ -25,7 +25,12 @@ def build_trajectory_documents(session_summaries, camera_id):
             'end_time': float(s['exit_time']),
             'zones_visited': s.get('zones_visited', []),
             'path': [
-                {'t': float(p['t']), 'x': float(p['x']), 'y': float(p['y'])}
+                {
+                    't': float(p['t']),
+                    'x': float(p['x']),
+                    'y': float(p['y']),
+                    **({'floor_x': float(p['floor_x']), 'floor_y': float(p['floor_y'])} if 'floor_x' in p and 'floor_y' in p else {})
+                }
                 for p in s.get('path', [])
             ],
         })
