@@ -4,9 +4,7 @@ import {
   Upload,
   Video,
   Info,
-  HardDrive,
   FolderOpen,
-  FileVideo,
   ShieldCheck,
   ListVideo,
   Trash2,
@@ -17,13 +15,11 @@ import {
   Play,
   Sparkles,
   Layers,
-  ChevronDown,
-  Check,
   X,
-  PlusCircle,
+  Activity,
+  Flame,
 } from "lucide-react";
-import HomographyCalibrator from "./HomographyCalibrator";
-import UnifiedCalibrationZoneEditor from "./UnifiedCalibrationZoneEditor";
+import UnifiedCalibrationZoneEditor from "../modals/UnifiedCalibrationZoneEditor";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const socket = io(API_BASE_URL, { autoConnect: false });
@@ -132,12 +128,20 @@ const DEFAULT_PRESETS = [
   },
 ];
 
-export default function VideoUploader() {
+export default function VideoUploader({ onNavigate, showToast: externalShowToast }) {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState([]);
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState("info"); // 'info' | 'success' | 'error'
+
+  const handleViewHeatmap = () => {
+    if (onNavigate) {
+      onNavigate("heatmap");
+    } else {
+      window.location.href = "/heatmap";
+    }
+  };
 
   // Store presets state (fetched from backend + custom saved)
   const [storePresets, setStorePresets] = useState(DEFAULT_PRESETS);
@@ -275,9 +279,14 @@ export default function VideoUploader() {
     });
 
     return () => {
+      socket.off("processing:status");
+      socket.off("processing:frame");
+      socket.off("processing:progress");
+      socket.off("processing:complete");
+      socket.off("processing:error");
       socket.disconnect();
     };
-  }, [activeJobs]);
+  }, []);
 
   const handleBrowseClick = () => {
     fileInputRef.current?.click();
@@ -609,6 +618,7 @@ export default function VideoUploader() {
           mappingConfig: item.mapping,
           roiPoints,
           zones: item.mapping?.zones || item.zones || [],
+          blueprintSrc: item.mapping?.blueprintSrc || item.blueprintSrc || null,
           showPreview: showDesktopPreview,
         };
 
@@ -678,86 +688,95 @@ export default function VideoUploader() {
   );
 
   return (
-    <div className="w-full relative">
+    <div className="w-full max-w-6xl relative space-y-6 animate-fadeIn">
       {/* Toast Notification Banner */}
       {toastMessage && (
         <div
           className={`fixed top-24 left-1/2 -translate-x-1/2 z-50 min-w-[340px] max-w-xl px-5 py-3.5 rounded-xl shadow-2xl text-sm font-semibold text-center border transition-all animate-fadeIn ${
             toastType === "success"
-              ? "bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/40"
+              ? "bg-[#08764e] text-white border-emerald-500 shadow-emerald-950/40"
               : toastType === "error"
                 ? "bg-rose-600 text-white border-rose-500 shadow-rose-950/40"
-                : "bg-slate-800 text-white border-slate-700 shadow-black/50"
+                : "bg-gray-800 text-white border-gray-700 shadow-black/50"
           }`}
         >
           {toastMessage}
         </div>
       )}
 
-      {/* Hero Header Section */}
-      <section className="hero-section mb-8">
-        <div className="hero-content">
-          <div className="hero-main">
-            <h4>Welcome to</h4>
-            <h1>HEATVISION</h1>
-            <p className="hero-description">
-              Upload CCTV footage, configure camera perspective homography per
-              video, and process individual retail spatial heatmaps.
-            </p>
-          </div>
+      {/* Page header — aligned with Live Processing */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            Video Upload & Processing
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Upload CCTV footage, configure camera homography, and process video
+            batches.
+          </p>
         </div>
-      </section>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#a1c9b3]/60 bg-[#f2f8f4] text-xs font-semibold text-[#08764e] w-fit">
+          <span className="w-2 h-2 rounded-full bg-[#08764e] animate-pulse" />
+          <span>
+            {Object.values(activeJobs).some(
+              (job) => !job.completed && !job.failed,
+            )
+              ? "Pipeline Processing"
+              : "Pipeline Ready"}
+          </span>
+        </div>
+      </div>
 
       {/* Active Jobs Real-time Processing Strip */}
       {Object.values(activeJobs).length > 0 && (
         <div className="space-y-4 mb-8">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400 flex items-center gap-2">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-[#08764e] flex items-center gap-2">
             <Loader2 className="animate-spin" size={16} /> Active Processing
             Pipeline ({Object.values(activeJobs).length})
           </h3>
           {Object.values(activeJobs).map((job) => (
             <div
               key={job.id}
-              className="bg-slate-800/90 border border-blue-500/40 p-5 rounded-xl shadow-xl transition-all"
+              className="bg-white border border-[#a1c9b3]/60 p-5 rounded-xl shadow-xl transition-all"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="animate-spin text-blue-400" size={18} />
-                  <span className="font-semibold text-sm text-white">
+                  <Loader2 className="animate-spin text-[#08764e]" size={18} />
+                  <span className="font-semibold text-sm text-gray-900">
                     Processing Job ({job.cameraId}):{" "}
-                    <code className="text-blue-300 font-mono text-xs">
+                    <code className="text-[#08764e] font-mono text-xs">
                       {job.id}
                     </code>
                   </span>
                   {job.mappingName && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 font-mono">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs bg-[#e8f5ee] text-[#08764e] border border-[#a1c9b3]/60 flex items-center gap-1 font-mono">
                       <Sparkles size={11} />
                       Mapping: {job.mappingName}
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-blue-400 font-bold">
+                <span className="text-xs text-[#08764e] font-bold">
                   {(job.progress || 0).toFixed(0)}%
                 </span>
               </div>
-              <div className="w-full bg-slate-700 h-2.5 rounded-full overflow-hidden mb-2">
+              <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden mb-2">
                 <div
-                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-300 ease-out"
+                  className="bg-gradient-to-r from-[#08764e] to-[#0b8b60] h-full transition-all duration-300 ease-out"
                   style={{ width: `${job.progress || 0}%` }}
                 />
               </div>
-              <div className="flex justify-between items-center text-xs text-slate-400">
+              <div className="flex justify-between items-center text-xs text-gray-500">
                 <span className="italic">
                   {job.videoName ? `Source: ${job.videoName}` : ""}
                 </span>
-                <span className="text-slate-300 font-medium">
+                <span className="text-gray-600 font-medium">
                   {job.statusMsg || "Processing pipeline active..."}
                 </span>
               </div>
 
               {/* Real-time Video Trajectory Monitor */}
               {job.previewFrame && !job.completed && (
-                <div className="mt-4 relative rounded-xl overflow-hidden border border-slate-700 bg-slate-950 max-w-xl mx-auto shadow-2xl">
+                <div className="mt-4 relative rounded-xl overflow-hidden border border-gray-200 bg-slate-950 max-w-xl mx-auto shadow-2xl">
                   <img
                     src={job.previewFrame}
                     alt="Real-time Trajectory Pipeline"
@@ -769,7 +788,7 @@ export default function VideoUploader() {
                   </div>
                   <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[11px] text-white/90 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                     <span>Frame: {job.currentFrame || "Analyzing..."}</span>
-                    <span className="text-emerald-400 font-mono">
+                    <span className="text-[#08764e] font-mono">
                       Drawing live motion trails
                     </span>
                   </div>
@@ -777,37 +796,47 @@ export default function VideoUploader() {
               )}
 
               {/* Finished Processed Video Action Bar */}
-              {job.completed && job.annotatedVideoUrl && (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 p-3.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl">
-                  <div className="flex items-center gap-2 text-emerald-300 text-xs sm:text-sm font-semibold">
+              {job.completed && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 p-3.5 bg-[#f2f8f4] border border-[#a1c9b3]/60 rounded-xl">
+                  <div className="flex items-center gap-2 text-[#08764e] text-xs sm:text-sm font-semibold">
                     <CheckCircle2
                       size={18}
-                      className="text-emerald-400 shrink-0"
+                      className="text-[#08764e] shrink-0"
                     />
                     <span>
-                      Processing completed! All trajectory trails were drawn &
-                      saved.
+                      Processing completed! All trajectory trails were drawn & dual heatmaps generated.
                     </span>
                   </div>
-                  {/* <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() =>
-                        setPreviewVideoModal(
-                          `${API_BASE_URL}${job.annotatedVideoUrl}`,
-                        )
-                      }
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition cursor-pointer"
+                      onClick={handleViewHeatmap}
+                      className="px-4 py-2 bg-[#08764e] hover:bg-[#065e3e] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-900/20 transition cursor-pointer"
                     >
-                      <Play size={14} className="fill-current" />
-                      Watch Video with Trajectories
+                      <Flame size={14} className="fill-current" />
+                      View Heatmap
                     </button>
-                    <a
-                      href={`${API_BASE_URL}${job.annotatedVideoUrl}`}
-                      download={`annotated_${job.id}.mp4`}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
-                    >
-                      Download MP4
-                    </a>
+                    {job.annotatedVideoUrl && (
+                      <button
+                        onClick={() =>
+                          setPreviewVideoModal(
+                            `${API_BASE_URL}${job.annotatedVideoUrl}`,
+                          )
+                        }
+                        className="px-3.5 py-2 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Play size={13} />
+                        Watch Video
+                      </button>
+                    )}
+                    {job.annotatedVideoUrl && (
+                      <a
+                        href={`${API_BASE_URL}${job.annotatedVideoUrl}`}
+                        download={`annotated_${job.id}.mp4`}
+                        className="px-3 py-2 bg-gray-50 hover:bg-gray-200 border border-gray-200 text-gray-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                      >
+                        Download MP4
+                      </a>
+                    )}
                     <button
                       onClick={() => {
                         setActiveJobs((prev) => {
@@ -816,12 +845,12 @@ export default function VideoUploader() {
                           return updated;
                         });
                       }}
-                      className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition"
+                      className="p-1.5 text-gray-500 hover:text-gray-900 rounded hover:bg-gray-200 transition cursor-pointer"
                       title="Dismiss"
                     >
                       <X size={15} />
                     </button>
-                  </div> */}
+                  </div>
                 </div>
               )}
             </div>
@@ -835,22 +864,22 @@ export default function VideoUploader() {
           <div
             className={`drop-zone p-8 border-2 border-dashed rounded-xl text-center cursor-pointer transition ${
               dragActive
-                ? "border-blue-500 bg-blue-500/10"
-                : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
+                ? "border-[#08764e] bg-[#e8f5ee]"
+                : "border-gray-200 bg-gray-50/40 hover:border-[#a1c9b3]"
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <Upload className="mx-auto mb-4 text-slate-400" size={48} />
+            <Upload className="mx-auto mb-4 text-gray-500" size={48} />
             <h2 className="text-xl font-bold mb-2">
               Drag & Drop your CCTV videos here
             </h2>
-            <p className="text-slate-400 text-sm mb-4">
+            <p className="text-gray-500 text-sm mb-4">
               or{" "}
               <span
                 onClick={handleBrowseClick}
-                className="text-blue-400 underline cursor-pointer"
+                className="text-[#08764e] underline cursor-pointer"
               >
                 browse files
               </span>{" "}
@@ -858,7 +887,7 @@ export default function VideoUploader() {
             </p>
             <div className="flex justify-center gap-3">
               <button
-                className="browse-button px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium hover:bg-blue-500 transition shadow-lg shadow-blue-600/30"
+                className="browse-button px-4 py-2 bg-[#08764e] rounded-lg text-white text-sm font-medium hover:bg-[#065e3e] transition shadow-lg shadow-emerald-900/10"
                 onClick={handleBrowseClick}
               >
                 <FolderOpen size={16} className="inline mr-2" /> Browse Files
@@ -875,14 +904,14 @@ export default function VideoUploader() {
           </div>
         </section>
 
-        <section className="guidelines-card bg-slate-800/60 p-6 rounded-xl border border-slate-700/60 flex flex-col gap-3 justify-between">
+        <section className="guidelines-card bg-white p-6 rounded-xl border border-gray-100 flex flex-col gap-3 justify-between">
           <div>
             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-              <Info size={18} className="text-blue-400" /> Workflow Guidelines
+              <Info size={18} className="text-[#08764e]" /> Workflow Guidelines
             </h3>
-            <div className="space-y-2.5 text-xs text-slate-300">
+            <div className="space-y-2.5 text-xs text-gray-600">
               <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-[#08764e] flex items-center justify-center font-bold shrink-0 mt-0.5">
                   1
                 </span>
                 <span>
@@ -890,7 +919,7 @@ export default function VideoUploader() {
                 </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-[#08764e] flex items-center justify-center font-bold shrink-0 mt-0.5">
                   2
                 </span>
                 <span>
@@ -899,7 +928,7 @@ export default function VideoUploader() {
                 </span>
               </div>
               <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                <span className="w-5 h-5 rounded-full bg-blue-500/20 text-[#08764e] flex items-center justify-center font-bold shrink-0 mt-0.5">
                   3
                 </span>
                 <span>
@@ -909,8 +938,8 @@ export default function VideoUploader() {
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-700/60 text-[11px] text-slate-400 flex items-center gap-1.5">
-            <ShieldCheck size={14} className="text-emerald-400" />
+          <div className="pt-3 border-t border-gray-100 text-[11px] text-gray-500 flex items-center gap-1.5">
+            <ShieldCheck size={14} className="text-[#08764e]" />
             <span>2GB max file size. MP4, AVI, MOV, MKV supported.</span>
           </div>
         </section>
@@ -918,25 +947,36 @@ export default function VideoUploader() {
 
       {/* Video Queue List with Mapping Controls */}
       {files.length > 0 && (
-        <section className="queue-card bg-slate-800/80 p-6 rounded-xl border border-slate-700/60 mb-6 shadow-xl">
-          <div className="queue-header flex flex-wrap justify-between items-center gap-3 mb-4 pb-3 border-b border-slate-700/50">
+        <section className="queue-card bg-white p-6 rounded-xl border border-gray-100 mb-6 shadow-xl">
+          <div className="queue-header flex flex-wrap justify-between items-center gap-3 mb-4 pb-3 border-b border-gray-100">
             <div>
               <h3 className="font-bold text-lg flex items-center gap-2">
-                <ListVideo size={19} className="text-blue-400" /> Upload Queue (
-                {files.length})
+                <ListVideo size={19} className="text-[#08764e]" /> Upload Queue
+                ({files.length})
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-gray-500 mt-0.5">
                 Associate a camera mapping with each queued video before
                 starting.
               </p>
             </div>
 
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-slate-300">
+            <div className="flex items-center gap-3 flex-wrap">
+              {Object.values(activeJobs).some((j) => j.completed) && (
+                <button
+                  onClick={handleViewHeatmap}
+                  className="px-3.5 py-1.5 bg-[#08764e] hover:bg-[#065e3e] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  title="Open generated dual video and floorplan heatmaps"
+                >
+                  <Flame size={14} className="fill-current" />
+                  <span>View Heatmap</span>
+                </button>
+              )}
+
+              <span className="text-xs text-gray-600">
                 Mapped Status:{" "}
                 <strong
                   className={
-                    allVideosMapped ? "text-emerald-400" : "text-amber-400"
+                    allVideosMapped ? "text-[#08764e]" : "text-amber-700"
                   }
                 >
                   {mappedCount} / {files.length} Ready
@@ -944,7 +984,7 @@ export default function VideoUploader() {
               </span>
 
               <button
-                className="clear-button text-xs text-rose-400 hover:text-rose-300 hover:underline transition"
+                className="clear-button text-xs text-rose-600 hover:text-rose-300 hover:underline transition"
                 onClick={clearFiles}
                 disabled={processingBatch}
               >
@@ -964,8 +1004,8 @@ export default function VideoUploader() {
                   key={item.id}
                   className={`queue-item p-4 rounded-xl border transition-all ${
                     isMapped
-                      ? "bg-slate-900/80 border-emerald-500/30"
-                      : "bg-slate-900/60 border-amber-500/30"
+                      ? "bg-[#f8faf9] border-[#a1c9b3]/60"
+                      : "bg-[#f8faf9] border-amber-200"
                   }`}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -974,34 +1014,34 @@ export default function VideoUploader() {
                       <div
                         className={`p-2.5 rounded-lg shrink-0 ${
                           isMapped
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-amber-500/10 text-amber-400"
+                            ? "bg-[#e8f5ee] text-[#08764e]"
+                            : "bg-amber-500/10 text-amber-700"
                         }`}
                       >
                         <Video size={24} />
                       </div>
 
                       <div className="min-w-0">
-                        <strong className="text-sm font-semibold block truncate max-w-xs sm:max-w-md text-white">
+                        <strong className="text-sm font-semibold block truncate max-w-xs sm:max-w-md text-gray-900">
                           {item.name || item.file?.name}
                         </strong>
-                        <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
                           <span>
                             {formatFileSize(item.size || item.file?.size)}
                           </span>
                           <span>•</span>
                           <span>
                             {item.uploadStatus === "uploading" ? (
-                              <span className="text-blue-400 flex items-center gap-1">
+                              <span className="text-[#08764e] flex items-center gap-1">
                                 <Loader2 size={12} className="animate-spin" />{" "}
                                 Staging on server...
                               </span>
                             ) : item.uploadStatus === "uploaded" ? (
-                              <span className="text-emerald-400">
+                              <span className="text-[#08764e]">
                                 Staged on server (Awaiting start)
                               </span>
                             ) : (
-                              <span className="text-slate-400">
+                              <span className="text-gray-500">
                                 Ready to stage
                               </span>
                             )}
@@ -1014,11 +1054,11 @@ export default function VideoUploader() {
                     <div className="flex flex-wrap items-center gap-3">
                       {/* Camera ID selector */}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-gray-500">
                           Camera:
                         </span>
                         <select
-                          className="bg-slate-800 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-200 focus:outline-none focus:border-blue-500"
+                          className="bg-gray-50 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-700 focus:outline-none focus:border-[#08764e]"
                           value={item.camera}
                           onChange={(e) =>
                             updateCamera(item.id, e.target.value)
@@ -1044,13 +1084,13 @@ export default function VideoUploader() {
                       <div className="flex items-center gap-1.5">
                         <Layers
                           size={13}
-                          className="text-slate-400 hidden sm:inline"
+                          className="text-gray-500 hidden sm:inline"
                         />
                         <select
                           className={`text-xs px-2.5 py-1.5 rounded-lg border focus:outline-none transition ${
                             isMapped
-                              ? "bg-slate-800/90 border-emerald-500/40 text-emerald-300"
-                              : "bg-slate-800 border-slate-700 text-slate-300"
+                              ? "bg-white border-[#a1c9b3]/60 text-[#08764e]"
+                              : "bg-gray-50 border-gray-200 text-gray-600"
                           }`}
                           value={item.mapping?.id || ""}
                           onChange={(e) =>
@@ -1077,17 +1117,14 @@ export default function VideoUploader() {
 
                       {/* Mapping Status Badge */}
                       {isMapped ? (
-                        <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
-                          <CheckCircle2
-                            size={13}
-                            className="text-emerald-400"
-                          />
+                        <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#e8f5ee] text-[#08764e] border border-[#a1c9b3]/60 flex items-center gap-1.5">
+                          <CheckCircle2 size={13} className="text-[#08764e]" />
                           <span className="truncate max-w-[130px]">
                             {item.mapping.name}
                           </span>
                         </div>
                       ) : (
-                        <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                        <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5">
                           <AlertCircle size={13} />
                           <span>Mapping Required</span>
                         </div>
@@ -1099,18 +1136,36 @@ export default function VideoUploader() {
                         disabled={processingBatch}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border ${
                           isMapped
-                            ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
-                            : "bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border-blue-500/50 shadow-md shadow-blue-500/10"
+                            ? "bg-gray-50 hover:bg-gray-200 text-gray-700 border-gray-200"
+                            : "bg-[#f2f8f4] hover:bg-[#08764e] text-[#08764e] hover:text-white border-[#a1c9b3]/60 shadow-md shadow-emerald-900/10"
                         }`}
                         title="Configure video coordinate homography"
                       >
-                        <Target size={14} className="text-blue-400" />
+                        <Target size={14} className="text-[#08764e]" />
                         {isMapped ? "Edit Mapping" : "Configure Mapping"}
                       </button>
 
+                      {/* View Heatmap Button for processed video */}
+                      {Object.values(activeJobs).some(
+                        (j) =>
+                          j.completed &&
+                          (j.id === item.id ||
+                            j.videoName === item.file?.name ||
+                            j.videoName === item.name),
+                      ) && (
+                        <button
+                          onClick={handleViewHeatmap}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-[#08764e] text-white hover:bg-[#065e3e] shadow-sm transition cursor-pointer"
+                          title="View generated dual heatmap for this video"
+                        >
+                          <Flame size={13} className="fill-current" />
+                          View Heatmap
+                        </button>
+                      )}
+
                       {/* Remove Video Action Button */}
                       <button
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                        className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                         onClick={() => removeFile(item.id)}
                         disabled={processingBatch}
                         title="Remove video from queue"
@@ -1126,23 +1181,177 @@ export default function VideoUploader() {
         </section>
       )}
 
+      {/* Queue pipeline telemetry */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        {[
+          {
+            label: "Queued Videos",
+            value: files.length,
+            icon: Video,
+            note: "Files in upload queue",
+          },
+          {
+            label: "Mappings Ready",
+            value: `${mappedCount}/${files.length}`,
+            icon: Layers,
+            note: "Valid homography configs",
+          },
+          {
+            label: "Active Jobs",
+            value: Object.values(activeJobs).filter(
+              (job) => !job.completed && !job.failed,
+            ).length,
+            icon: Activity,
+            note: "Processing pipeline jobs",
+          },
+          {
+            label: "Completed Jobs",
+            value: Object.values(activeJobs).filter((job) => job.completed)
+              .length,
+            icon: CheckCircle2,
+            note: "Finished successfully",
+          },
+        ].map(({ label, value, icon: Icon, note }) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-gray-500">
+                {label}
+              </span>
+              <span className="rounded-xl bg-[#e8f5ee] p-2 text-[#08764e]">
+                <Icon size={17} />
+              </span>
+            </div>
+            <div className="mt-3 text-2xl font-bold text-gray-900">{value}</div>
+            <p className="mt-1 text-[11px] text-gray-500">{note}</p>
+          </div>
+        ))}
+      </section>
+
+      {/* Processed video batches */}
+      {Object.values(activeJobs).some((job) => job.completed || job.failed) && (
+        <section className="rounded-2xl border border-gray-100 bg-white p-5 sm:p-6 shadow-sm mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">
+                Processed Video Batches
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Results from jobs launched in this session.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[#08764e] bg-[#e8f5ee] px-2.5 py-1 rounded-full">
+                {
+                  Object.values(activeJobs).filter(
+                    (job) => job.completed || job.failed,
+                  ).length
+                }{" "}
+                finished
+              </span>
+              {Object.values(activeJobs).some((job) => job.completed) && (
+                <button
+                  onClick={handleViewHeatmap}
+                  className="px-3 py-1 bg-[#08764e] hover:bg-[#065e3e] text-white text-xs font-semibold rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer"
+                  title="View dual heatmaps generated from completed sessions"
+                >
+                  <Flame size={12} className="fill-current" />
+                  <span>View Heatmap</span>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-[#f2f8f4] text-gray-700">
+                  <th className="py-3 px-3 rounded-l-lg">Job ID</th>
+                  <th className="py-3 px-3">Video</th>
+                  <th className="py-3 px-3">Camera</th>
+                  <th className="py-3 px-3">Mapping</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 rounded-r-lg text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {Object.values(activeJobs)
+                  .filter((job) => job.completed || job.failed)
+                  .map((job) => (
+                    <tr key={job.id} className="hover:bg-gray-50/70">
+                      <td className="py-3 px-3 font-mono text-gray-500">
+                        {job.id}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-gray-900">
+                        {job.videoName || "CCTV video"}
+                      </td>
+                      <td className="py-3 px-3 text-gray-600">
+                        {job.cameraId || "—"}
+                      </td>
+                      <td className="py-3 px-3 text-gray-600">
+                        {job.mappingName || "Homography"}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold ${job.failed ? "bg-rose-50 text-rose-600" : "bg-[#e8f5ee] text-[#08764e]"}`}
+                        >
+                          {job.failed ? (
+                            <AlertCircle size={12} />
+                          ) : (
+                            <CheckCircle2 size={12} />
+                          )}
+                          {job.failed ? "Failed" : "Completed"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right space-x-2">
+                        {job.completed && (
+                          <button
+                            onClick={handleViewHeatmap}
+                            className="px-2.5 py-1 bg-[#08764e] hover:bg-[#065e3e] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          >
+                            <Flame size={12} className="fill-current" />
+                            <span>View Heatmap</span>
+                          </button>
+                        )}
+                        {job.annotatedVideoUrl && (
+                          <button
+                            onClick={() =>
+                              setPreviewVideoModal(
+                                `${API_BASE_URL}${job.annotatedVideoUrl}`,
+                              )
+                            }
+                            className="px-2 py-1 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-medium transition cursor-pointer"
+                          >
+                            Preview
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {/* Bottom Processing Control Footer */}
       {files.length > 0 && (
-        <section className="bottom-section flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-800/50 backdrop-blur-md p-5 rounded-xl border border-slate-700/60 shadow-xl">
+        <section className="bottom-section flex flex-col sm:flex-row justify-between items-center gap-4 bg-white backdrop-blur-md p-5 rounded-xl border border-gray-100 shadow-xl">
           <div className="stats flex flex-wrap gap-6 text-sm">
             <div>
-              <span className="text-slate-400">Total Videos:</span>{" "}
+              <span className="text-gray-500">Total Videos:</span>{" "}
               <strong>{files.length}</strong>
             </div>
             <div>
-              <span className="text-slate-400">Total Size:</span>{" "}
+              <span className="text-gray-500">Total Size:</span>{" "}
               <strong>{formatFileSize(totalSize)}</strong>
             </div>
             <div>
-              <span className="text-slate-400">Mapped Status:</span>{" "}
+              <span className="text-gray-500">Mapped Status:</span>{" "}
               <strong
                 className={
-                  allVideosMapped ? "text-emerald-400" : "text-amber-400"
+                  allVideosMapped ? "text-[#08764e]" : "text-amber-700"
                 }
               >
                 {mappedCount}/{files.length} Videos Configured
@@ -1151,12 +1360,12 @@ export default function VideoUploader() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer bg-slate-900/70 hover:bg-slate-900 px-3 py-2.5 rounded-xl border border-slate-700/80 hover:border-blue-500/50 transition">
+            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer bg-[#f8faf9] hover:bg-gray-100 px-3 py-2.5 rounded-xl border border-gray-200 hover:border-[#a1c9b3]/60 transition">
               <input
                 type="checkbox"
                 checked={showDesktopPreview}
                 onChange={(e) => setShowDesktopPreview(e.target.checked)}
-                className="accent-blue-500 w-3.5 h-3.5 rounded"
+                className="accent-[#08764e] w-3.5 h-3.5 rounded"
               />
               <span className="font-medium">
                 🖥️ Pop-up Desktop OpenCV Window
@@ -1164,7 +1373,7 @@ export default function VideoUploader() {
             </label>
 
             {!allVideosMapped && (
-              <span className="text-xs text-amber-400 flex items-center gap-1.5 font-medium hidden md:inline">
+              <span className="text-xs text-amber-700 flex items-center gap-1.5 font-medium hidden md:inline">
                 <AlertCircle size={14} /> Configure mapping for all videos to
                 start
               </span>
@@ -1173,8 +1382,8 @@ export default function VideoUploader() {
             <button
               className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2.5 transition-all shadow-lg ${
                 allVideosMapped
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-600/30 cursor-pointer"
-                  : "bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60"
+                  ? "bg-gradient-to-r from-[#08764e] to-[#0b8b60] hover:from-[#065e3e] hover:to-[#08764e] text-white shadow-emerald-900/10 cursor-pointer"
+                  : "bg-gray-50 text-slate-500 border border-gray-200 cursor-not-allowed opacity-60"
               }`}
               onClick={startProcessing}
               disabled={!allVideosMapped || processingBatch}
@@ -1202,7 +1411,7 @@ export default function VideoUploader() {
       {/* Embedded Homography Calibrator Modal for Specific Video */}
       {calibratingVideoId && currentCalibratingVideo && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 sm:p-4 animate-fadeIn">
+          <div className="relative w-full max-w-7xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white border border-[#08764e] shadow-2xl p-2 sm:p-4 animate-fadeIn">
             <UnifiedCalibrationZoneEditor
               videoItem={currentCalibratingVideo}
               onClose={() => setCalibratingVideoId(null)}
@@ -1242,9 +1451,9 @@ export default function VideoUploader() {
       {previewVideoModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl p-5 shadow-2xl flex flex-col gap-4 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Play size={18} className="text-emerald-400" />
+                <Play size={18} className="text-[#08764e]" />
                 Processed Video with Drawn Trajectories & Bounding Boxes
               </h3>
               <button
@@ -1266,7 +1475,7 @@ export default function VideoUploader() {
               </video>
             </div>
 
-            <div className="flex flex-wrap justify-between items-center text-xs text-slate-400 pt-1 gap-2">
+            <div className="flex flex-wrap justify-between items-center text-xs text-gray-500 pt-1 gap-2">
               <span>
                 Includes YOLO person detections, ByteTrack IDs, foot points, and
                 motion trajectory polylines.
@@ -1275,13 +1484,13 @@ export default function VideoUploader() {
                 <a
                   href={previewVideoModal}
                   download="annotated_trajectories.mp4"
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg font-medium transition"
+                  className="px-3 py-1.5 bg-gray-50 hover:bg-gray-200 border border-gray-200 text-gray-600 rounded-lg font-medium transition"
                 >
                   Download Video
                 </a>
                 <button
                   onClick={() => setPreviewVideoModal(null)}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition cursor-pointer"
+                  className="px-4 py-1.5 bg-[#08764e] hover:bg-[#065e3e] text-white rounded-lg font-medium transition cursor-pointer"
                 >
                   Close
                 </button>

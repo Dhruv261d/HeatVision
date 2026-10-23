@@ -96,7 +96,30 @@ def run_tests():
     else:
         print("  -> Demo video skipped (file not present).")
 
-    print("\n✅ ALL 8 SYSTEM TESTS PASSED SUCCESSFULLY WITH ZERO ERRORS!")
+    # 9. Dual Heatmap & Zone Analytics Automatic Generator
+    print("[9/9] Testing Dual Heatmap Generator (Video Frame & Blueprint)...")
+    from services.heatmap_generator import generate_dual_heatmaps
+    sample_traj = [
+        {
+            "track_id": 1,
+            "camera_id": "cam_1",
+            "start_time": 0.0,
+            "end_time": 5.0,
+            "path": [
+                {"t": 0.0, "x": 100, "y": 150, "floor_x": 80, "floor_y": 180},
+                {"t": 1.0, "x": 120, "y": 180, "floor_x": 110, "floor_y": 210},
+                {"t": 2.0, "x": 150, "y": 220, "floor_x": 140, "floor_y": 260},
+            ]
+        }
+    ]
+    hm_out = generate_dual_heatmaps(sample_traj)
+    assert hm_out["status"] == "success", "Heatmap generation failed"
+    assert os.path.exists(hm_out["video_overlay"]), "Video overlay image missing"
+    assert os.path.exists(hm_out["blueprint_overlay"]), "Blueprint overlay image missing"
+    assert len(hm_out["zone_analytics"]["zones"]) > 0, "Zone analytics missing"
+    print("  -> Dual Heatmap Generator & Zone Analytics OK!")
+
+    print("\n✅ ALL 9 SYSTEM TESTS PASSED SUCCESSFULLY WITH ZERO ERRORS!")
 
 if __name__ == '__main__':
     run_tests()

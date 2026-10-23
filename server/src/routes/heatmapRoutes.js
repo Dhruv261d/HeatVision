@@ -213,4 +213,174 @@ router.get('/summary', (req, res) => {
   }
 });
 
+/**
+ * Helper to find latest zone analytics and heatmap image paths
+ */
+function getLatestHeatmapInfo() {
+  const processedDir = path.resolve(__dirname, '../../../data/processed');
+  const uploadsDir = path.resolve(__dirname, '../../uploads/heatmaps');
+  const publicDir = path.resolve(__dirname, '../../../client/public');
+
+  // Check where files exist
+  const candidates = [uploadsDir, processedDir, publicDir];
+  let foundDir = null;
+  let zoneAnalytics = null;
+  let latestMtime = 0;
+  let trajectoryFile = null;
+
+  // Search latest trajectory file
+  if (fs.existsSync(processedDir)) {
+    const trajFiles = fs.readdirSync(processedDir)
+      .filter((f) => f.endsWith('_trajectories.json'))
+      .map((f) => {
+        const full = path.join(processedDir, f);
+        return { name: f, full, mtime: fs.statSync(full).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+
+    if (trajFiles.length > 0) {
+      trajectoryFile = trajFiles[0].name;
+      latestMtime = trajFiles[0].mtime;
+    }
+  }
+
+  // Find zone_analytics.json
+  for (const dir of candidates) {
+    const jsonPath = path.join(dir, 'zone_analytics.json');
+    if (fs.existsSync(jsonPath)) {
+      try {
+        zoneAnalytics = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        foundDir = dir;
+        break;
+      } catch (e) {}
+    }
+  }
+
+  const hasHistory = Boolean(trajectoryFile && latestMtime > 0 && zoneAnalytics);
+
+  return {
+    hasHistory,
+    source: trajectoryFile || null,
+    timestamp: latestMtime || null,
+    videoOverlay: hasHistory ? '/api/heatmap/image/video_overlay' : null,
+    blueprintOverlay: hasHistory ? '/api/heatmap/image/blueprint_overlay' : null,
+    videoHeatmap: hasHistory ? '/api/heatmap/image/video_heatmap' : null,
+    blueprintHeatmap: hasHistory ? '/api/heatmap/image/blueprint_heatmap' : null,
+    zoneAnalytics: zoneAnalytics || { total_visitors: 0, zones: [], heuristics: {} },
+  };
+}
+
+/**
+ * GET /api/heatmap/latest
+ * Returns latest dual heatmap URLs and zone-wise analytics
+ */
+router.get('/latest', (req, res) => {
+  try {
+    const info = getLatestHeatmapInfo();
+    return res.status(200).json({
+      success: true,
+      hasHistory: info.hasHistory,
+      source: info.source,
+      timestamp: info.timestamp,
+      videoOverlay: info.videoOverlay,
+      blueprintOverlay: info.blueprintOverlay,
+      videoHeatmap: info.videoHeatmap,
+      blueprintHeatmap: info.blueprintHeatmap,
+      totalVisitors: info.hasHistory ? (info.zoneAnalytics.total_visitors || 0) : 0,
+      zones: info.hasHistory ? (info.zoneAnalytics.zones || []) : [],
+      heuristics: info.hasHistory ? (info.zoneAnalytics.heuristics || {}) : {},
+    });
+  } catch (error) {
+    console.error('[heatmapRoutes] Error fetching latest heatmaps:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch latest heatmap data',
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/heatmap/image/:type
+ * Streams heatmap image directly (video_overlay, blueprint_overlay, video_heatmap, blueprint_heatmap, blueprint)
+ */
+router.get('/image/:type', (req, res) => {
+  const { type } = req.params;
+  const fileNameMap = {
+    video_overlay: 'video_heatmap_overlay.png',
+    blueprint_overlay: 'blueprint_heatmap_overlay.png',
+    video_heatmap: 'video_heatmap.png',
+    blueprint_heatmap: 'blueprint_heatmap.png',
+    blueprint: 'latest_blueprint.png',
+    frame: 'sample-frame.jpg',
+  };
+
+  const targetName = fileNameMap[type] || `${type}.png`;
+
+  const searchDirs = [
+    path.resolve(__dirname, '../../uploads/heatmaps'),
+    path.resolve(__dirname, '../../../data/processed'),
+    path.resolve(__dirname, '../../../client/public'),
+    path.resolve(__dirname, '../../../data/demo'),
+    path.resolve(__dirname, '../../../'),
+  ];
+
+  for (const dir of searchDirs) {
+    const filePath = path.join(dir, targetName);
+    if (fs.existsSync(filePath)) {
+      const ext = path.extname(targetName).toLowerCase();
+      const contentType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.sendFile(filePath);
+    }
+  }
+
+  // Fallbacks if target was blueprint
+  if (type === 'blueprint') {
+    const bpCandidates = [
+      path.resolve(__dirname, '../../../client/public/sample-blueprint.jpg'),
+      path.resolve(__dirname, '../../../data/uploads/blueprints/1792494360686_sample_blueprint.jpg'),
+      path.resolve(__dirname, '../../../client/public/sample_blueprint 2.png'),
+    ];
+    for (const cand of bpCandidates) {
+      if (fs.existsSync(cand)) {
+        const ext = path.extname(cand).toLowerCase();
+        res.setHeader('Content-Type', ext === '.png' ? 'image/png' : 'image/jpeg');
+        return res.sendFile(cand);
+      }
+    }
+  }
+
+  return res.status(404).json({ success: false, message: `Image ${type} not found` });
+});
+
+/**
+ * POST /api/heatmap/generate
+ * Trigger automatic dual heatmap generation from latest trajectories
+ */
+router.post('/generate', async (req, res) => {
+  try {
+    const { exec } = await import('child_process');
+    const pythonScript = path.resolve(__dirname, '../../../cv_service/src/services/heatmap-generator.py');
+    const pythonExe = process.env.PYTHON_PATH || 'python';
+
+    exec(`"${pythonExe}" "${pythonScript}"`, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[heatmapRoutes] Generate error:', stderr || err.message);
+        return res.status(500).json({ success: false, message: 'Generation failed', error: stderr });
+      }
+
+      const info = getLatestHeatmapInfo();
+      return res.status(200).json({
+        success: true,
+        message: 'Dual heatmaps generated successfully',
+        data: info,
+      });
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

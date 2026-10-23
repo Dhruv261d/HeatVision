@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-
 import {
   Calculator,
   Check,
@@ -18,103 +17,64 @@ import {
   Crosshair,
   Pentagon,
 } from "lucide-react";
-
-import "./UnifiedCalibrationZoneEditor.css";
-
 /** Unified camera calibration and polygon-zone editor. */
-
 const DEFAULT_VIDEO_POINTS = [
   [0.15, 0.15],
-
   [0.85, 0.15],
-
   [0.85, 0.85],
-
   [0.15, 0.85],
 ];
-
 const DEFAULT_BLUEPRINT_POINTS = [
   [0.2, 0.2],
-
   [0.8, 0.2],
-
   [0.8, 0.8],
-
   [0.2, 0.8],
 ];
-
 const POINT_COLORS = ["#EF4444", "#3B82F6", "#10B981", "#F59E0B"];
-
 const POINT_LABELS = ["Top-left", "Top-right", "Bottom-right", "Bottom-left"];
-
 const ZONE_TYPES = [
   { id: "shelf", label: "Shelf", color: "#22C55E" },
-
   { id: "aisle", label: "Aisle", color: "#3B82F6" },
-
   { id: "billing", label: "Billing counter", color: "#F59E0B" },
-
   { id: "entrance", label: "Entrance / Exit", color: "#A855F7" },
-
   { id: "custom", label: "Custom", color: "#EC4899" },
 ];
-
 const clamp = (v) => Math.max(0, Math.min(1, v));
-
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ??
   `zone_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
 const normalizeInitialPoints = (points, resolution, fallback) => {
   if (!Array.isArray(points) || points.length !== 4) return fallback;
-
   const width = resolution?.width || 1;
-
   const height = resolution?.height || 1;
-
   return points.map((point) => {
     // New format: normalized [x, y] pairs.
-
     if (Array.isArray(point))
       return [clamp(Number(point[0])), clamp(Number(point[1]))]; // Legacy HomographyCalibrator format: pixel objects { x, y }.
-
     if (point && typeof point === "object") {
       const x = Number(point.x);
-
       const y = Number(point.y); // If stored coordinates look normalized, keep them normalized.
-
       if (x >= 0 && x <= 1 && y >= 0 && y <= 1) return [x, y];
-
       return [clamp(x / width), clamp(y / height)];
     }
-
     return [0.5, 0.5];
   });
 };
-
 const toPixelPoints = (points, image) =>
   points.map(([x, y]) => ({
     x: Math.round(x * (image?.naturalWidth || 1)),
-
     y: Math.round(y * (image?.naturalHeight || 1)),
   }));
-
 const projectPointWithH = (pt, H) => {
   if (!pt || !Array.isArray(H) || H.length !== 3) return null;
-
   const [x, y] = pt;
-
   const w = H[2][0] * x + H[2][1] * y + H[2][2];
-
   if (Math.abs(w) < 1e-9) return null;
-
   return {
     x: (H[0][0] * x + H[0][1] * y + H[0][2]) / w,
-
     y: (H[1][0] * x + H[1][1] * y + H[1][2]) / w,
   };
 };
-
 export default function UnifiedCalibrationZoneEditor({
   videoItem,
   initialConfig = {},
@@ -129,20 +89,15 @@ export default function UnifiedCalibrationZoneEditor({
   const videoStageRef = useRef(null);
   const blueprintStageRef = useRef(null);
   const dragRef = useRef(null);
-  const [mode, setMode] = useState("calibrate"); // calibrate | zones
-
+  const [mode, setMode] = useState("calibrate"); // calibrate | zones*
   const [videoSrc, setVideoSrc] = useState(
     initialConfig.videoSrc || videoItem?.videoSrc || null,
   );
-
   const [blueprintSrc, setBlueprintSrc] = useState(
     blueprintSrcProp || initialConfig.blueprintSrc || null,
   );
-
   const [videoImage, setVideoImage] = useState(null);
-
   const [blueprintImage, setBlueprintImage] = useState(null);
-
   const [videoPoints, setVideoPoints] = useState(() =>
     normalizeInitialPoints(
       initialConfig.videoPoints,
@@ -150,7 +105,6 @@ export default function UnifiedCalibrationZoneEditor({
       DEFAULT_VIDEO_POINTS,
     ),
   );
-
   const [blueprintPoints, setBlueprintPoints] = useState(() =>
     normalizeInitialPoints(
       initialConfig.blueprintPoints,
@@ -158,7 +112,6 @@ export default function UnifiedCalibrationZoneEditor({
       DEFAULT_BLUEPRINT_POINTS,
     ),
   );
-
   const [hMatrix, setHMatrix] = useState(initialConfig.HMatrix || null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState("");
@@ -170,12 +123,9 @@ export default function UnifiedCalibrationZoneEditor({
   const [draftVideo, setDraftVideo] = useState([]);
   const [draftBlueprint, setDraftBlueprint] = useState([]);
   const [activeZoneId, setActiveZoneId] = useState(null);
-
-  // const selectedZoneType =
-  // ZONE_TYPES.find((z) => z.id === zoneType) || ZONE_TYPES[0];
-
-  // const activeZone = zones.find((z) => z.id === activeZoneId) || null; // Extract one representative frame from the uploaded video.
-
+  // const selectedZoneType =*
+  // ZONE_TYPES.find((z) => z.id === zoneType) || ZONE_TYPES[0];*
+  // const activeZone = zones.find((z) => z.id === activeZoneId) || null; // Extract one representative frame from the uploaded video.*
   useEffect(() => {
     const file = videoItem?.file;
     if (!file || !file.type?.startsWith("video/")) return;
@@ -185,11 +135,9 @@ export default function UnifiedCalibrationZoneEditor({
     el.muted = true;
     el.playsInline = true;
     const cleanup = () => URL.revokeObjectURL(objectUrl);
-
     el.onloadedmetadata = () => {
       el.currentTime = Math.min(1, (el.duration || 2) / 3);
     };
-
     el.onseeked = () => {
       try {
         const canvas = document.createElement("canvas");
@@ -198,7 +146,6 @@ export default function UnifiedCalibrationZoneEditor({
         canvas
           .getContext("2d")
           ?.drawImage(el, 0, 0, canvas.width, canvas.height);
-
         setVideoSrc(canvas.toDataURL("image/jpeg", 0.9));
       } catch (e) {
         setError(`Could not extract video frame: ${e.message}`);
@@ -206,71 +153,58 @@ export default function UnifiedCalibrationZoneEditor({
         cleanup();
       }
     };
-
     el.onerror = cleanup;
-
     return cleanup;
   }, [videoItem?.file]);
-
   useEffect(() => {
     if (!blueprintSrcProp) return;
-
     setBlueprintSrc(blueprintSrcProp);
   }, [blueprintSrcProp]);
-
   useEffect(() => {
     if (!videoSrc) {
       setVideoImage(null);
-
       return;
     }
-
     const img = new Image();
-
     img.onload = () => setVideoImage(img);
     img.onerror = () => setError("Could not load the video frame image.");
     img.src = videoSrc;
   }, [videoSrc]);
-
   useEffect(() => {
     if (!blueprintSrc) {
       setBlueprintImage(null);
-
       return;
     }
-
     const img = new Image();
-
     img.onload = () => setBlueprintImage(img);
     img.onerror = () => setError("Could not load the floorplan image.");
-
     img.src = blueprintSrc;
   }, [blueprintSrc]);
-
   const loadImageFile = (event, side) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       setError("Please choose a valid image file.");
       return;
     }
-
-    const url = URL.createObjectURL(file);
-
-    if (side === "video") setVideoSrc(url);
-    else setBlueprintSrc(url);
-
-    setHMatrix(null);
-    setStatus("");
-    setError("");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      if (side === "video") setVideoSrc(dataUrl);
+      else setBlueprintSrc(dataUrl);
+      setHMatrix(null);
+      setStatus("");
+      setError("");
+    };
+    reader.onerror = () => {
+      setError("Failed to read image file.");
+    };
+    reader.readAsDataURL(file);
   };
-
   const stagePoint = useCallback((event, side) => {
     const stage =
       side === "video" ? videoStageRef.current : blueprintStageRef.current;
-
     const svg = stage?.querySelector("svg.ucze-overlay");
     if (!svg) return [0, 0];
     const rect = svg.getBoundingClientRect();
@@ -279,29 +213,22 @@ export default function UnifiedCalibrationZoneEditor({
       clamp((event.clientY - rect.top) / rect.height),
     ];
   }, []);
-
   const onCalibrationPointerDown = (event, side) => {
     if (mode !== "calibrate") return;
     event.preventDefault();
     event.stopPropagation();
     const stage =
       side === "video" ? videoStageRef.current : blueprintStageRef.current;
-
     const svg = stage?.querySelector("svg.ucze-overlay");
-
     if (!svg) return;
-
     const rect = svg.getBoundingClientRect();
-
     if (!rect.width || !rect.height) return;
-
     const points = side === "video" ? videoPoints : blueprintPoints;
     const pointerX = event.clientX - rect.left;
     const pointerY = event.clientY - rect.top;
     const radiusThreshold = Math.max(12, rect.width / 25);
     let nearestIndex = -1;
     let nearestDistance = Infinity;
-
     points.forEach(([x, y], index) => {
       const pointX = x * rect.width;
       const pointY = y * rect.height;
@@ -311,92 +238,70 @@ export default function UnifiedCalibrationZoneEditor({
         nearestIndex = index;
       }
     });
-
     if (nearestIndex === -1) return;
-
     dragRef.current = {
       side,
       index: nearestIndex,
       pointerId: event.pointerId,
     };
-
     try {
       stage?.setPointerCapture(event.pointerId);
     } catch {
-      // Continue using the active drag state.
+      // Continue using the active drag state.*
     }
   };
-
   const onStagePointerMove = (event, side) => {
     const drag = dragRef.current;
-
     if (mode === "calibrate" && drag) {
       if (drag.side !== side || drag.pointerId !== event.pointerId) {
         return;
       }
-
       const p = stagePoint(event, drag.side);
-
       const setter =
         drag.side === "video" ? setVideoPoints : setBlueprintPoints;
-
       setter((prev) => prev.map((old, i) => (i === drag.index ? p : old)));
       setHMatrix(null);
       return;
     }
-
     if (
       mode === "zones" &&
       activeSide === side &&
       (side === "video" ? draftVideo.length : draftBlueprint.length)
     ) {
-      // Keep your existing zone behavior.
+      // Keep your existing zone behavior.*
     }
   };
-
   const onStagePointerUp = (event) => {
     if (!dragRef.current) return;
-
     if (
       dragRef.current.pointerId != null &&
       event?.pointerId != null &&
       dragRef.current.pointerId !== event.pointerId
     )
       return;
-
     dragRef.current = null;
   };
-
   const onStageClick = (event, side) => {
-    if (mode !== "zones") return; // Ignore clicks originating from calibration handles.
-
+    if (mode !== "zones") return; // Ignore clicks originating from calibration handles.*
     if (event.target?.dataset?.calibrationHandle === "true") return;
-
     const p = stagePoint(event, side);
-
     setActiveSide(side);
-
     if (side === "video") setDraftVideo((prev) => [...prev, p]);
     else setDraftBlueprint((prev) => [...prev, p]);
-
     setStatus(
       `Added ${side === "video" ? "video-frame" : "floorplan"} polygon point.`,
     );
-
     setError("");
   };
-
   const resetDrafts = () => {
     setDraftVideo([]);
     setDraftBlueprint([]);
     setStatus("");
   };
-
   const createZone = () => {
     let finalVideo = [...draftVideo];
     let finalBlueprint = [...draftBlueprint];
-
-    // If points drawn on video but not on floorplan, and H is available, project automatically!
+    // If points drawn on video but not on floorplan, and H is available, project automatically!*
     if (
       finalVideo.length >= 3 &&
       finalBlueprint.length < 3 &&
@@ -418,14 +323,12 @@ export default function UnifiedCalibrationZoneEditor({
         return [vx, vy];
       });
     }
-
     if (finalVideo.length < 3 && finalBlueprint.length < 3) {
       setError(
         "Draw at least 3 points on either the video frame or the floorplan to create a zone.",
       );
       return;
     }
-
     const zone = {
       id: uid(),
       name: zoneName.trim() || `Zone ${zones.length + 1}`,
@@ -437,85 +340,59 @@ export default function UnifiedCalibrationZoneEditor({
           ? finalBlueprint.map(([x, y]) => ({ x, y }))
           : finalVideo.map(([x, y]) => ({ x, y })),
     };
-
     const nextZones = [...zones, zone];
     setZones(nextZones);
     onSaveZones?.(nextZones);
-
     setActiveZoneId(zone.id);
-
     setZoneName((prev) => {
       const match = prev.match(/^(.*?)(\d+)$/);
       return match ? `${match[1]}${Number(match[2]) + 1}` : `${prev} 2`;
     });
-
     resetDrafts();
     setError("");
     setStatus(`Zone "${zone.name}" added and saved.`);
   };
-
   const removeZone = (id) => {
     const nextZones = zones.filter((z) => z.id !== id);
     setZones(nextZones);
     onSaveZones?.(nextZones);
-
     if (activeZoneId === id) setActiveZoneId(null);
   };
-
   const calculateH = async () => {
     if (!videoImage || !blueprintImage) {
       setError("Load both a video frame and a floorplan before calibration.");
-
       return;
     }
-
     setIsCalculating(true);
-
     setError("");
-
     setStatus("");
-
     const payload = {
       videoPoints: toPixelPoints(videoPoints, videoImage),
-
       blueprintPoints: toPixelPoints(blueprintPoints, blueprintImage),
     };
-
     try {
       const response = await fetch(`${apiBaseUrl}/api/caligraphy/calibrate`, {
         method: "POST",
-
         headers: { "Content-Type": "application/json" },
-
         body: JSON.stringify(payload),
       });
-
       const data = await response.json();
-
       if (!response.ok || !data.success || !data.HMatrix) {
         throw new Error(
           data.message || data.error || "Calibration API failed.",
         );
       }
-
       setHMatrix(data.HMatrix);
-
       const calibration = {
         id: initialConfig.id || uid(),
-
         name: `${videoItem?.name || "Camera"} Mapping`,
-
         camera: videoItem?.camera || "cam_1_entrance",
-
         videoResolution: {
           width: videoImage.naturalWidth,
-
           height: videoImage.naturalHeight,
         },
-
         blueprintResolution: {
           width: blueprintImage.naturalWidth,
-
           height: blueprintImage.naturalHeight,
         },
         videoPoints: toPixelPoints(videoPoints, videoImage),
@@ -526,9 +403,7 @@ export default function UnifiedCalibrationZoneEditor({
         blueprintSrc,
         appliedAt: new Date().toISOString(),
       };
-
       onSaveCalibration?.(calibration);
-
       setStatus("Calibration calculated and saved.");
     } catch (e) {
       setError(e.message || "Unable to calculate calibration.");
@@ -536,32 +411,25 @@ export default function UnifiedCalibrationZoneEditor({
       setIsCalculating(false);
     }
   };
-
   const saveZones = async () => {
     if (!zones.length) {
       setError("Create at least one zone before saving.");
-
       return;
     }
-
     try {
       await onSaveZones?.(zones);
-
       setStatus("Zones saved.");
-
       setError("");
     } catch (e) {
       setError(e.message || "Could not save zones.");
     }
   };
-
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         if (activeSide === "video") setDraftVideo([]);
         else setDraftBlueprint([]);
       }
-
       if (
         event.key === "Enter" &&
         mode === "zones" &&
@@ -571,7 +439,6 @@ export default function UnifiedCalibrationZoneEditor({
       ) {
         createZone();
       }
-
       if (
         (event.key === "Backspace" || event.key === "Delete") &&
         mode === "zones" &&
@@ -580,9 +447,7 @@ export default function UnifiedCalibrationZoneEditor({
         removeZone(activeZoneId);
       }
     };
-
     window.addEventListener("keydown", onKeyDown);
-
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     activeSide,
@@ -594,7 +459,6 @@ export default function UnifiedCalibrationZoneEditor({
     zoneName,
     zoneType,
   ]);
-
   const renderStage = (side) => {
     const isVideo = side === "video";
     const image = isVideo ? videoImage : blueprintImage;
@@ -605,17 +469,19 @@ export default function UnifiedCalibrationZoneEditor({
     const imageName = isVideo ? "Video frame" : "Store floorplan";
     const stageRef = isVideo ? videoStageRef : blueprintStageRef;
     const color = isVideo ? "#60A5FA" : "#34D399";
-
     return (
-      <section className="ucze-panel" key={side}>
-        <div className="ucze-panel-head">
-          <strong>
+      <section
+        className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+        key={side}
+      >
+        <div className="flex flex-wrap items-center justify-start gap-3">
+          <strong className="mr-auto inline-flex items-center gap-2 text-sm font-semibold text-gray-800">
             {isVideo ? <Video size={16} /> : <Map size={16} />} {imageName}{" "}
           </strong>
 
           <button
             type="button"
-            className="ucze-button ucze-button--small"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() =>
               (isVideo ? videoInputRef : blueprintInputRef).current?.click()
             }
@@ -633,7 +499,7 @@ export default function UnifiedCalibrationZoneEditor({
         </div>
 
         <div
-          className={`ucze-stage ${image ? "ucze-stage--loaded" : ""} ${mode === "zones" ? "ucze-stage--draw" : ""}`}
+          className={`relative min-h-60 w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 leading-none touch-none ${image ? "min-h-0" : ""} ${mode === "zones" ? "cursor-crosshair" : "cursor-default"}`}
           ref={stageRef}
           onPointerDown={(e) => {
             if (mode === "calibrate") onCalibrationPointerDown(e, side);
@@ -645,12 +511,17 @@ export default function UnifiedCalibrationZoneEditor({
         >
           {src && image ? (
             <>
-              <img src={src} alt={imageName} draggable="false" />
+              <img
+                className="block h-auto max-h-[65vh] w-full select-none object-contain"
+                src={src}
+                alt={imageName}
+                draggable="false"
+              />
 
               <svg
                 viewBox="0 0 1 1"
                 preserveAspectRatio="none"
-                className="ucze-overlay"
+                className="ucze-overlay absolute left-0 top-0 block h-full w-full overflow-visible touch-none"
               >
                 {mode === "calibrate" && points.length === 4 && (
                   <polygon
@@ -693,7 +564,7 @@ export default function UnifiedCalibrationZoneEditor({
 
                       <text
                         x={x}
-                        y={y} // dy="0.01"
+                        y={y} // dy="0.01"*
                         textAnchor="middle"
                         fill="white"
                         fontSize="0.05"
@@ -710,12 +581,9 @@ export default function UnifiedCalibrationZoneEditor({
 
                 {zones.map((z) => {
                   const polygon = isVideo ? z.videoPolygon : z.blueprintPolygon;
-
                   if (!polygon?.length) return null;
-
                   const zColor =
                     ZONE_TYPES.find((t) => t.id === z.type)?.color || "#EC4899";
-
                   return (
                     <polygon
                       key={z.id}
@@ -757,7 +625,7 @@ export default function UnifiedCalibrationZoneEditor({
               </svg>
             </>
           ) : (
-            <div className="ucze-empty">
+            <div className="flex min-h-60 flex-col items-center justify-center gap-3 rounded-lg p-5 text-center leading-relaxed text-gray-500">
               <p>
                 {isVideo
                   ? "Upload a representative frame, or provide a videoItem.file to extract one automatically."
@@ -766,7 +634,7 @@ export default function UnifiedCalibrationZoneEditor({
 
               <button
                 type="button"
-                className="ucze-button"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() =>
                   (isVideo ? videoInputRef : blueprintInputRef).current?.click()
                 }
@@ -777,7 +645,7 @@ export default function UnifiedCalibrationZoneEditor({
           )}
         </div>
 
-        <p className="ucze-help">
+        <p className="m-0 text-sm leading-relaxed text-gray-500">
           {mode === "calibrate"
             ? "Drag the large numbered handles to matching physical landmarks. The blue outline connects the four points in order."
             : `Click to add polygon corners on the ${isVideo ? "video frame" : "floorplan"}. Draw at least 3 points on each image for the same zone.`}
@@ -785,21 +653,24 @@ export default function UnifiedCalibrationZoneEditor({
 
         {mode === "calibrate" && image && (
           <div
-            className="ucze-pixel-readout"
+            className="rounded-lg border border-gray-200 bg-gray-50 p-3 leading-relaxed"
             aria-label={`${imageName} calibration pixel coordinates`}
           >
-            <div className="ucze-pixel-readout-head">
+            <div className="mb-2 flex items-center justify-between gap-2 text-sm text-gray-800">
               <strong>Pixel coordinates</strong>{" "}
-              <span>
+              <span className="text-xs text-gray-400">
                 {image.naturalWidth} × {image.naturalHeight} px
               </span>
             </div>
 
-            <div className="ucze-pixel-grid">
+            <div className="grid gap-2">
               {points.map(([x, y], i) => (
-                <div className="ucze-pixel-row" key={`${side}-pixel-${i}`}>
+                <div
+                  className="grid grid-cols-[22px_minmax(68px,1fr)_auto_auto] items-center gap-2 text-xs text-gray-600 max-[520px]:grid-cols-[22px_minmax(60px,1fr)_auto]"
+                  key={`${side}-pixel-${i}`}
+                >
                   <span
-                    className="ucze-pixel-point"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white text-xs font-extrabold text-white"
                     style={{ background: POINT_COLORS[i] }}
                   >
                     {i + 1}{" "}
@@ -807,9 +678,13 @@ export default function UnifiedCalibrationZoneEditor({
 
                   <span>{POINT_LABELS[i]}</span>
 
-                  <code>x: {Math.round(x * image.naturalWidth)} px</code>
+                  <code className="whitespace-nowrap text-xs text-blue-700">
+                    x: {Math.round(x * image.naturalWidth)} px
+                  </code>
 
-                  <code>y: {Math.round(y * image.naturalHeight)} px</code>
+                  <code className="whitespace-nowrap text-xs text-blue-700 max-[520px]:col-start-3">
+                    y: {Math.round(y * image.naturalHeight)} px
+                  </code>
                 </div>
               ))}
             </div>
@@ -818,13 +693,16 @@ export default function UnifiedCalibrationZoneEditor({
 
         {mode === "calibrate" && (
           <div
-            className="ucze-point-legend"
+            className="mt-1 flex flex-wrap gap-x-3 gap-y-2"
             aria-label="Calibration point order"
           >
             {POINT_LABELS.map((label, i) => (
-              <span key={label} className="ucze-point-legend-item">
+              <span
+                key={label}
+                className="inline-flex items-center gap-2 text-xs text-gray-600"
+              >
                 <span
-                  className="ucze-point-swatch"
+                  className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white text-xs font-extrabold text-white shadow"
                   style={{ background: POINT_COLORS[i] }}
                 >
                   {i + 1}{" "}
@@ -836,10 +714,10 @@ export default function UnifiedCalibrationZoneEditor({
         )}
 
         {mode === "zones" && (
-          <div className="ucze-draft-actions">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="ucze-button ucze-button--small"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => setDraft((prev) => prev.slice(0, -1))}
               disabled={!draft.length}
             >
@@ -848,7 +726,7 @@ export default function UnifiedCalibrationZoneEditor({
 
             <button
               type="button"
-              className="ucze-button ucze-button--small"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => setDraft([])}
               disabled={!draft.length}
             >
@@ -859,33 +737,32 @@ export default function UnifiedCalibrationZoneEditor({
       </section>
     );
   };
-
   const projectedCalibrationPoints = useMemo(() => {
     if (!hMatrix || !videoImage || !blueprintImage) return [];
-
     return videoPoints.map((p) =>
       projectPointWithH(
         [p[0] * videoImage.naturalWidth, p[1] * videoImage.naturalHeight],
-
         hMatrix,
       ),
     );
   }, [hMatrix, videoPoints, videoImage, blueprintImage]);
-
   return (
-    <div className="ucze">
-      <header className="ucze-header">
+    <div className="flex w-full flex-col gap-4 p-4 text-gray-800 sm:p-5">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2>Camera Calibration & Zone Editor</h2>{" "}
-          <p>
+          <h2 className="mb-1 text-xl font-semibold tracking-tight text-gray-900">
+            Camera Calibration & Zone Editor
+          </h2>{" "}
+          <p className="m-0 max-w-2xl text-sm leading-relaxed text-gray-500">
             Calibrate the camera-to-floorplan mapping, then define matching
             zones in both views.{" "}
           </p>
         </div>
+
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="ucze-button ucze-button--primary"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               if (hMatrix) {
                 const calibration = {
@@ -934,20 +811,29 @@ export default function UnifiedCalibrationZoneEditor({
           >
             <Check size={16} /> Save & Apply
           </button>
+
           {onClose && (
-            <button type="button" className="ucze-button" onClick={onClose}>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onClose}
+            >
               Close{" "}
             </button>
           )}
         </div>
       </header>
 
-      <div className="ucze-tabs" role="tablist" aria-label="Editor mode">
+      <div
+        className="flex flex-wrap gap-2 border-b border-gray-200 pb-3"
+        role="tablist"
+        aria-label="Editor mode"
+      >
         <button
           type="button"
           role="tab"
           aria-selected={mode === "calibrate"}
-          className={mode === "calibrate" ? "is-active" : ""}
+          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${mode === "calibrate" ? "border-emerald-700 bg-emerald-700 text-white" : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
           onClick={() => setMode("calibrate")}
         >
           <Crosshair size={16} /> 1. Calibrate (4 points){" "}
@@ -957,7 +843,7 @@ export default function UnifiedCalibrationZoneEditor({
           type="button"
           role="tab"
           aria-selected={mode === "zones"}
-          className={mode === "zones" ? "is-active" : ""}
+          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${mode === "zones" ? "border-emerald-700 bg-emerald-700 text-white" : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
           onClick={() => setMode("zones")}
         >
           <Pentagon size={16} /> 2. Draw zones{" "}
@@ -965,16 +851,16 @@ export default function UnifiedCalibrationZoneEditor({
       </div>
 
       {mode === "calibrate" ? (
-        <div className="ucze-toolbar">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
           <span>
             Match the same four physical landmarks in both images. Points are
             numbered, color-coded, and connected in order.{" "}
           </span>
 
-          <div className="ucze-actions">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="ucze-button"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={() => {
                 setVideoPoints(DEFAULT_VIDEO_POINTS);
                 setBlueprintPoints(DEFAULT_BLUEPRINT_POINTS);
@@ -988,7 +874,7 @@ export default function UnifiedCalibrationZoneEditor({
 
             <button
               type="button"
-              className="ucze-button ucze-button--primary"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={calculateH}
               disabled={isCalculating || !videoImage || !blueprintImage}
             >
@@ -998,25 +884,27 @@ export default function UnifiedCalibrationZoneEditor({
           </div>
 
           {hMatrix && (
-            <span className="ucze-success">
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700">
               <Check size={15} /> H matrix ready{" "}
             </span>
           )}
         </div>
       ) : (
-        <div className="ucze-zone-form">
-          <label>
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-600">
             Zone name{" "}
             <input
+              className="min-w-[180px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               value={zoneName}
               onChange={(e) => setZoneName(e.target.value)}
               placeholder="e.g. Shelf 1"
             />
           </label>
 
-          <label>
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-600">
             Zone type{" "}
             <select
+              className="min-w-[145px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               value={zoneType}
               onChange={(e) => setZoneType(e.target.value)}
             >
@@ -1028,9 +916,10 @@ export default function UnifiedCalibrationZoneEditor({
             </select>
           </label>
 
-          <label>
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-600">
             Draw on{" "}
             <select
+              className="min-w-[145px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
               value={activeSide}
               onChange={(e) => setActiveSide(e.target.value)}
             >
@@ -1039,14 +928,18 @@ export default function UnifiedCalibrationZoneEditor({
             </select>
           </label>
 
-          <div className="ucze-actions">
-            <button type="button" className="ucze-button" onClick={resetDrafts}>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={resetDrafts}
+            >
               <RotateCcw size={15} /> Clear both drafts
             </button>
 
             <button
               type="button"
-              className="ucze-button ucze-button--primary"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={createZone}
               disabled={draftVideo.length < 3 || draftBlueprint.length < 3}
             >
@@ -1055,7 +948,7 @@ export default function UnifiedCalibrationZoneEditor({
 
             <button
               type="button"
-              className="ucze-button ucze-button--primary"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-700 bg-emerald-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={saveZones}
               disabled={!zones.length}
             >
@@ -1063,7 +956,7 @@ export default function UnifiedCalibrationZoneEditor({
             </button>
           </div>
 
-          <p className="ucze-help">
+          <p className="m-0 text-sm leading-relaxed text-gray-500">
             Draw the same logical zone in both views: select “Draw on”, click at
             least three corners on that image, then switch views and draw the
             matching region. Add paired zone when both polygons are ready.{" "}
@@ -1071,14 +964,18 @@ export default function UnifiedCalibrationZoneEditor({
         </div>
       )}
 
-      <div className="ucze-grid">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
         {renderStage("video")} {renderStage("blueprint")}
       </div>
 
       {mode === "calibrate" && hMatrix && (
-        <details className="ucze-matrix">
-          <summary>View H matrix</summary>{" "}
-          <pre>{JSON.stringify(hMatrix, null, 2)}</pre>{" "}
+        <details className="rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
+          <summary className="cursor-pointer font-medium">
+            View H matrix
+          </summary>{" "}
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-xs text-emerald-700">
+            {JSON.stringify(hMatrix, null, 2)}
+          </pre>{" "}
           {projectedCalibrationPoints.length > 0 && (
             <p>
               Calibration matrix is available for trajectory projection. Confirm
@@ -1088,12 +985,14 @@ export default function UnifiedCalibrationZoneEditor({
         </details>
       )}
 
-      <section className="ucze-zone-list">
-        <div className="ucze-zone-list-head">
-          <h3>Defined zones ({zones.length})</h3>{" "}
+      <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="m-0 text-base font-semibold text-gray-900">
+            Defined zones ({zones.length})
+          </h3>{" "}
           <button
             type="button"
-            className="ucze-button"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={saveZones}
             disabled={!zones.length}
           >
@@ -1102,42 +1001,42 @@ export default function UnifiedCalibrationZoneEditor({
         </div>
 
         {!zones.length ? (
-          <p className="ucze-help">
+          <p className="m-0 text-sm leading-relaxed text-gray-500">
             No zones yet. Switch to “Draw zones” and create a paired
             polygon.{" "}
           </p>
         ) : (
-          <ul>
+          <ul className="mt-3 flex list-none flex-col gap-2 p-0">
             {zones.map((z) => {
               const zColor =
                 ZONE_TYPES.find((t) => t.id === z.type)?.color || "#EC4899";
-
               return (
                 <li
                   key={z.id}
-                  className={activeZoneId === z.id ? "is-active" : ""}
+                  className={`flex flex-wrap items-center gap-3 rounded-lg border p-2 ${activeZoneId === z.id ? "border-emerald-500 bg-emerald-50" : "border-gray-200 bg-white"}`}
                 >
                   <span
-                    className="ucze-zone-dot"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ background: zColor }}
                   />
 
                   <button
                     type="button"
-                    className="ucze-zone-select"
+                    className="cursor-pointer border-0 bg-transparent text-left font-medium text-gray-800"
                     onClick={() => setActiveZoneId(z.id)}
                   >
-                    {z.name} <small>({z.type})</small>
+                    {z.name}{" "}
+                    <small className="text-xs text-gray-500">({z.type})</small>
                   </button>
 
-                  <small>
+                  <small className="ml-auto text-xs text-gray-500 max-[900px]:ml-0 max-[900px]:basis-full">
                     Video: {z.videoPolygon?.length || 0} points · Floorplan:{" "}
                     {z.blueprintPolygon?.length || 0} points
                   </small>
 
                   <button
                     type="button"
-                    className="ucze-icon-button"
+                    className="inline-flex items-center rounded-md border border-red-200 bg-white p-1.5 text-red-600 transition hover:bg-red-50"
                     aria-label={`Delete ${z.name}`}
                     onClick={() => removeZone(z.id)}
                   >
@@ -1152,9 +1051,7 @@ export default function UnifiedCalibrationZoneEditor({
 
       {(error || status) && (
         <div
-          className={
-            error ? "ucze-message ucze-message--error" : "ucze-message"
-          }
+          className={`rounded-lg border px-3 py-2 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}
           role="status"
         >
           {error || status}{" "}
