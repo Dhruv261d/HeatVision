@@ -9,7 +9,6 @@ const ZONE_DATA = [
     type: "Pass-through",
     visitors: 482,
     avgDwell: "2.1 min",
-    conversion: "92% entry",
     dotColor: "var(--zone-a)",
   },
   {
@@ -19,7 +18,6 @@ const ZONE_DATA = [
     type: "Checkout",
     visitors: 310,
     avgDwell: "5.4 min",
-    conversion: "68% purchase",
     dotColor: "var(--zone-b)",
   },
   {
@@ -29,7 +27,6 @@ const ZONE_DATA = [
     type: "Promotional",
     visitors: 418,
     avgDwell: "8.2 min",
-    conversion: "44% basket",
     dotColor: "var(--zone-c)",
   },
   {
@@ -39,7 +36,6 @@ const ZONE_DATA = [
     type: "Browse",
     visitors: 240,
     avgDwell: "4.0 min",
-    conversion: "31% engage",
     dotColor: "var(--zone-d)",
   },
 ];
@@ -144,11 +140,6 @@ export default function FloorplanHeatmap() {
               </li>
             ))}
           </ul>
-
-          <div className="fhm-summary-banner">
-            <span>Overall Shopper Conversion</span>
-            <strong>+18.4% vs last week</strong>
-          </div>
         </section>
       </div>
     </div>

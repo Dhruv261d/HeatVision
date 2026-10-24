@@ -133,7 +133,7 @@ export default function Sidebar({ activePage, onNavigate, isOpen, onClose }) {
         </div>
 
         {/* Bottom Store Info / System Status */}
-        <div className="pt-4 border-t border-[#f0f3f1] px-2">
+        {/* <div className="pt-4 border-t border-[#f0f3f1] px-2">
           <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#f8faf9] border border-[#e8efe9]">
             <div className="relative">
               <span className="relative flex h-2.5 w-2.5">
@@ -153,7 +153,7 @@ export default function Sidebar({ activePage, onNavigate, isOpen, onClose }) {
               Ready
             </span>
           </div>
-        </div>
+        </div> */}
       </aside>
     </>
   );

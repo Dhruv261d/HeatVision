@@ -128,7 +128,10 @@ const DEFAULT_PRESETS = [
   },
 ];
 
-export default function VideoUploader({ onNavigate, showToast: externalShowToast }) {
+export default function VideoUploader({
+  onNavigate,
+  showToast: externalShowToast,
+}) {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [files, setFiles] = useState([]);
@@ -496,7 +499,6 @@ export default function VideoUploader({ onNavigate, showToast: externalShowToast
           : f,
       ),
     );
-    setCalibratingVideoId(null);
     showToast(
       `Calibration "${calibrationPayload.name}" successfully configured for video!`,
       "success",
@@ -804,7 +806,8 @@ export default function VideoUploader({ onNavigate, showToast: externalShowToast
                       className="text-[#08764e] shrink-0"
                     />
                     <span>
-                      Processing completed! All trajectory trails were drawn & dual heatmaps generated.
+                      Processing completed! All trajectory trails were drawn &
+                      dual heatmaps generated.
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1080,7 +1083,7 @@ export default function VideoUploader({ onNavigate, showToast: externalShowToast
                         </select>
                       </div>
 
-                      {/* Store Presets Dropdown */}
+                      {/* Store Presets Dropdown
                       <div className="flex items-center gap-1.5">
                         <Layers
                           size={13}
@@ -1113,7 +1116,7 @@ export default function VideoUploader({ onNavigate, showToast: externalShowToast
                               </option>
                             )}
                         </select>
-                      </div>
+                      </div> */}
 
                       {/* Mapping Status Badge */}
                       {isMapped ? (

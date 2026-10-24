@@ -218,18 +218,16 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
             badge = "Transit Corridor"
             lost_rev_str = "Corridor Flow"
         else:
-            conv_rate = round(max(5.0, base_conv - (avg_dwell_min * 0.8)), 1)
-            conv_str = f"{conv_rate}%"
             if avg_dwell_min >= 4.0:
                 lost_rev = int(lost_rev_base * (avg_dwell_min / 3.0))
-                insight = f"High dwell time with low conversion. Potential ₹{lost_rev:,} recoverable revenue."
-                badge = "High Dwell / Low Conv"
-                lost_rev_str = f"₹{lost_rev:,} Estimated Lost Opportunity"
+                insight = f"High customer dwell zone. Potential ₹{lost_rev:,} engagement opportunity."
+                badge = "High Dwell"
+                lost_rev_str = f"₹{lost_rev:,} Engagement Opportunity"
             else:
                 lost_rev = int(lost_rev_base * 0.8)
-                insight = f"Customers exit before reaching back displays. ₹{lost_rev:,} lost opportunity."
+                insight = f"Customers exit before reaching back displays."
                 badge = "Low Reach"
-                lost_rev_str = f"₹{lost_rev:,} Lost (Low aisle reach)"
+                lost_rev_str = f"₹{lost_rev:,} (Low aisle reach)"
 
         analyzed_zones.append({
             "id": zid,
@@ -242,7 +240,6 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
             "traffic_count": visitors_in_zone,
             "dwell": f"{avg_dwell_min} min",
             "dwell_minutes": avg_dwell_min,
-            "conversion": conv_str,
             "insight": insight,
             "badge": badge,
             "lost_revenue": lost_rev_str,
@@ -254,7 +251,7 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
         "total_visitors": total_store_visitors,
         "zones": analyzed_zones,
         "heuristics": {
-            "top_converting": next((z["name"] for z in analyzed_zones if z["category"] == "POS"), "Zone B"),
+            "top_performing": next((z["name"] for z in analyzed_zones if z["category"] == "POS"), "Zone B"),
             "highest_dwell": max(analyzed_zones, key=lambda z: z["dwell_minutes"])["name"] if analyzed_zones else "Zone A",
             "primary_corridor": next((z["name"] for z in analyzed_zones if z["category"] == "Entrance"), "Zone D")
         }

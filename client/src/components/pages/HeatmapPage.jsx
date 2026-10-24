@@ -153,8 +153,7 @@ export default function HeatmapPage({ onNavigate, showToast }) {
               Store Floorplan Heatmap
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Spatial footfall density, customer dwell times, and aisle
-              conversion mapping
+              Spatial footfall density and customer dwell times
             </p>
           </div>
           <button
@@ -251,8 +250,8 @@ export default function HeatmapPage({ onNavigate, showToast }) {
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            Spatial footfall density, customer dwell times, and aisle conversion
-            mapping automatically computed from CCTV trajectories
+            Spatial footfall density and customer dwell times automatically
+            computed from CCTV trajectories
           </p>
         </div>
 
@@ -550,11 +549,6 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                             <span>Footfall: {zone.traffic}</span>
                             <span>Dwell: {zone.dwell}</span>
                           </div>
-                          {zone.conversion && (
-                            <span className="text-[10px] text-emerald-300 mt-0.5">
-                              Conversion: {zone.conversion}
-                            </span>
-                          )}
                           <span className="text-[10px] text-slate-400 mt-1 leading-tight">
                             Click to inspect zone analytics
                           </span>
@@ -611,8 +605,8 @@ export default function HeatmapPage({ onNavigate, showToast }) {
             Zone-Wise Analytics
           </h2>
           <p className="text-xs text-gray-500">
-            Dwell duration, footfall density, and conversion opportunity derived
-            from shopper trajectories
+            Dwell duration and footfall density derived from shopper
+            trajectories
           </p>
         </div>
         <button
@@ -669,12 +663,6 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                     <span className="text-gray-400">Avg Dwell:</span>
                     <strong>{zone.dwell}</strong>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Conversion:</span>
-                    <strong className={isPos ? "text-[#08764e]" : ""}>
-                      {zone.conversion}
-                    </strong>
-                  </div>
                 </div>
               </div>
 
@@ -720,10 +708,10 @@ export default function HeatmapPage({ onNavigate, showToast }) {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 text-center py-2 bg-[#f8faf9] rounded-xl border border-[#e8efe9]">
+            <div className="grid grid-cols-2 gap-3 text-center py-2.5 bg-[#f8faf9] rounded-xl border border-[#e8efe9]">
               <div>
                 <span className="text-[11px] text-gray-400 block">Traffic</span>
-                <span className="font-bold text-xs text-gray-900">
+                <span className="font-bold text-sm text-gray-900">
                   {activeZoneModal.traffic}
                 </span>
               </div>
@@ -731,16 +719,8 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                 <span className="text-[11px] text-gray-400 block">
                   Dwell Time
                 </span>
-                <span className="font-bold text-xs text-gray-900">
+                <span className="font-bold text-sm text-gray-900">
                   {activeZoneModal.dwell}
-                </span>
-              </div>
-              <div>
-                <span className="text-[11px] text-gray-400 block">
-                  Conversion
-                </span>
-                <span className="font-bold text-xs text-[#08764e]">
-                  {activeZoneModal.conversion}
                 </span>
               </div>
             </div>
