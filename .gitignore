@@ -26,6 +26,8 @@ data/processed/*
 !data/processed/.gitkeep
 data/exports/*
 !data/exports/.gitkeep
+data/blueprints/*
+!data/blueprints/.gitkeep
 
 # OS & IDE metadata
 .DS_Store

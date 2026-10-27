@@ -145,9 +145,32 @@ def is_point_in_polygon(x, y, polygon):
 
 def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_size=(800, 600)):
     """
-    Computes zone-wise visitor counts, dwell times, conversion rates, and financial opportunity.
+    Computes accurate zone-wise visitor counts, dwell times, conversion rates, and financial opportunity.
     Matches the schema expected by HeatmapPage.jsx.
     """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+
+    # If no zones passed in, check for existing defined zones from previous runs
+    if not zones:
+        search_dirs = [
+            os.path.join(project_root, "data", "processed"),
+            os.path.join(project_root, "server", "uploads", "heatmaps"),
+            os.path.join(project_root, "client", "public"),
+        ]
+        for sdir in search_dirs:
+            z_path = os.path.join(sdir, "zone_analytics.json")
+            if os.path.exists(z_path):
+                try:
+                    with open(z_path, "r", encoding="utf-8") as zf:
+                        saved_za = json.load(zf)
+                        if saved_za.get("zones") and len(saved_za["zones"]) > 0:
+                            zones = saved_za["zones"]
+                            logger.info(f"Loaded {len(zones)} existing defined zones from {z_path}")
+                            break
+                except Exception as load_err:
+                    logger.debug(f"Could not load zones from {z_path}: {load_err}")
+
     if not zones:
         zones = DEFAULT_ZONES
 
@@ -155,79 +178,183 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
     analyzed_zones = []
     total_store_visitors = max(1, len(documents))
 
-    for zone in zones:
-        zid = zone.get("id") or zone.get("zone_id", "zone")
-        name = zone.get("name", zid)
-        category = zone.get("category", "Retail")
-        poly = zone.get("polygon", [])
-        left_str = zone.get("left", "50%")
-        top_str = zone.get("top", "50%")
+    # Cross-reference latest detections file if available
+    det_tracks_by_zone = {}
+    det_points_by_zone = {}
+    try:
+        temp_dir = os.path.join(project_root, "server", "uploads", "temp")
+        det_candidates = []
+        if os.path.exists(temp_dir):
+            for f in os.listdir(temp_dir):
+                if f.startswith("detections_") and f.endswith(".json"):
+                    det_candidates.append(os.path.join(temp_dir, f))
+        output_det = os.path.join(project_root, "output", "detections.json")
+        if os.path.exists(output_det):
+            det_candidates.append(output_det)
+
+        if det_candidates:
+            latest_det = sorted(det_candidates, key=os.path.getmtime)[-1]
+            with open(latest_det, "r", encoding="utf-8") as df:
+                det_json = json.load(df)
+                for frame in det_json.get("frames", []):
+                    for det in frame.get("detections", []):
+                        tid = det.get("track_id")
+                        coords = det.get("floorplan_coords") or det.get("feet")
+                        for z in det.get("zones", []):
+                            zname = z.get("zone_name") or z.get("name")
+                            if zname:
+                                key = zname.strip().lower()
+                                det_tracks_by_zone.setdefault(key, set()).add(tid)
+                                if coords and len(coords) >= 2:
+                                    det_points_by_zone.setdefault(key, []).append((float(coords[0]), float(coords[1])))
+    except Exception as det_err:
+        logger.debug(f"Could not scan detections files: {det_err}")
+
+    for idx, zone in enumerate(zones):
+        zid = str(zone.get("id") or zone.get("zone_id") or f"zone-{idx+1}")
+        name = str(zone.get("name") or zid)
+        category = str(zone.get("category") or zone.get("type") or "Retail")
         target_dwell = float(zone.get("target_dwell_seconds", 60))
         base_conv = float(zone.get("base_conversion", 20.0))
         lost_rev_base = float(zone.get("lost_revenue_est", 5000))
         hotspot_color = zone.get("hotspotColor", "rgba(8, 118, 78, 0.45)")
 
-        visitors_in_zone = 0
+        # Parse polygon points if available
+        raw_poly = (
+            zone.get("blueprintPolygon")
+            or zone.get("polygon")
+            or zone.get("points")
+            or zone.get("polygon_floor")
+            or []
+        )
+        poly = []
+        if isinstance(raw_poly, list):
+            for pt in raw_poly:
+                if isinstance(pt, dict):
+                    px, py = float(pt.get("x", 0)), float(pt.get("y", 0))
+                elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                    px, py = float(pt[0]), float(pt[1])
+                else:
+                    continue
+                # Normalize 0..1 to floorplan pixel dimensions
+                if px <= 1.0 and py <= 1.0 and bw > 1 and bh > 1:
+                    poly.append((px * bw, py * bh))
+                else:
+                    poly.append((px, py))
+
+        name_lower = name.strip().lower()
+        id_lower = zid.strip().lower()
+
+        visited_track_ids = set()
         total_dwell_seconds = 0.0
         hourly_counts = [0] * 24
+        all_zone_pts = []
 
+        # 1. Count from trajectory documents
         for doc in documents:
+            track_id = doc.get("track_id")
             path = doc.get("path", [])
             visited = False
             pts_in_zone = 0
 
-            for p in path:
-                # Check blueprint coordinates if present, else fallback
-                bx = p.get("floor_x") if "floor_x" in p else p.get("x", 0)
-                by = p.get("floor_y") if "floor_y" in p else p.get("y", 0)
+            # Check if trajectory records this zone visit
+            doc_zv = [str(zv).strip().lower() for zv in doc.get("zones_visited", [])]
+            if name_lower in doc_zv or id_lower in doc_zv:
+                visited = True
 
-                if is_point_in_polygon(bx, by, poly):
+            for p in path:
+                bx = float(p.get("floor_x") if "floor_x" in p else p.get("x", 0))
+                by = float(p.get("floor_y") if "floor_y" in p else p.get("y", 0))
+
+                if poly and is_point_in_polygon(bx, by, poly):
                     pts_in_zone += 1
                     visited = True
+                    all_zone_pts.append((bx, by))
                     t = float(p.get("t", 0.0))
                     hour = int(t / 3600) % 24
                     hourly_counts[hour] += 1
+                elif visited:
+                    all_zone_pts.append((bx, by))
 
             if visited:
-                visitors_in_zone += 1
-                # Sample interval approximation ~0.1s to 0.5s per point
-                dwell = max(1.0, pts_in_zone * 0.4)
+                visited_track_ids.add(track_id)
+                dwell = max(1.0, pts_in_zone * 0.4) if pts_in_zone > 0 else max(15.0, len(path) * 0.2)
                 total_dwell_seconds += dwell
 
-        # If zero trajectory overlap (e.g. synthetic test), synthesize realistic baseline
-        if visitors_in_zone == 0 and len(documents) > 0:
-            seed = sum(ord(c) for c in zid)
-            visitors_in_zone = max(5, int(len(documents) * (0.35 + (seed % 40) / 100.0)))
-            avg_dwell_min = round(1.2 + (seed % 45) / 10.0, 1)
-            total_dwell_seconds = visitors_in_zone * (avg_dwell_min * 60)
-        else:
+        # 2. Check frame detections for any tracks confirmed in this zone
+        if name_lower in det_tracks_by_zone:
+            for tid in det_tracks_by_zone[name_lower]:
+                visited_track_ids.add(tid)
+        if id_lower in det_tracks_by_zone:
+            for tid in det_tracks_by_zone[id_lower]:
+                visited_track_ids.add(tid)
+
+        if name_lower in det_points_by_zone:
+            all_zone_pts.extend(det_points_by_zone[name_lower])
+        if id_lower in det_points_by_zone:
+            all_zone_pts.extend(det_points_by_zone[id_lower])
+
+        visitors_in_zone = len(visited_track_ids)
+
+        if visitors_in_zone > 0:
             avg_dwell_min = round((total_dwell_seconds / max(1, visitors_in_zone)) / 60.0, 1)
             if avg_dwell_min < 0.1:
-                avg_dwell_min = round(0.5 + (len(doc.get("path", [])) * 0.05), 1)
+                avg_dwell_min = 1.2
+        else:
+            avg_dwell_min = 0.0
+
+        # Compute accurate left and top coordinates on blueprint
+        left_str = zone.get("left")
+        top_str = zone.get("top")
+        has_pos = left_str and top_str and not (left_str == "50%" and top_str == "50%")
+
+        if not has_pos and len(poly) >= 1:
+            cx = sum(p[0] for p in poly) / len(poly)
+            cy = sum(p[1] for p in poly) / len(poly)
+            left_str = f"{round((cx / max(1, bw)) * 100, 1)}%"
+            top_str = f"{round((cy / max(1, bh)) * 100, 1)}%"
+        elif not has_pos and len(all_zone_pts) >= 1:
+            cx = sum(p[0] for p in all_zone_pts) / len(all_zone_pts)
+            cy = sum(p[1] for p in all_zone_pts) / len(all_zone_pts)
+            left_str = f"{round((cx / max(1, bw)) * 100, 1)}%"
+            top_str = f"{round((cy / max(1, bh)) * 100, 1)}%"
+        elif not has_pos:
+            total_z = max(1, len(zones))
+            import math
+            angle = (idx / total_z) * 2 * math.pi - math.pi / 2
+            radius = 18 if total_z <= 2 else 24
+            cx_pct = min(85.0, max(15.0, 50.0 + radius * math.cos(angle)))
+            cy_pct = min(85.0, max(15.0, 50.0 + radius * math.sin(angle)))
+            left_str = f"{round(cx_pct, 1)}%"
+            top_str = f"{round(cy_pct, 1)}%"
 
         # Realistic conversion computation based on category & dwell
-        if category == "POS":
+        if category.upper() in ("POS", "CHECKOUT"):
             conv_rate = round(min(65.0, max(25.0, base_conv + (visitors_in_zone % 15))), 1)
             conv_str = f"{conv_rate}%"
             insight = "Optimal customer checkout flow. Highest transaction completion zone."
             badge = "Top Performing"
             lost_rev_str = "Optimal checkout flow"
-        elif category == "Entrance":
+        elif category.upper() in ("ENTRANCE", "DOOR"):
             conv_str = "—"
             insight = "Primary pedestrian transit corridor and store entrance flow."
             badge = "Transit Corridor"
             lost_rev_str = "Corridor Flow"
         else:
-            if avg_dwell_min >= 4.0:
+            if avg_dwell_min >= 3.0:
                 lost_rev = int(lost_rev_base * (avg_dwell_min / 3.0))
                 insight = f"High customer dwell zone. Potential ₹{lost_rev:,} engagement opportunity."
                 badge = "High Dwell"
                 lost_rev_str = f"₹{lost_rev:,} Engagement Opportunity"
+            elif visitors_in_zone == 0:
+                insight = "No footfall recorded in this zone during this period."
+                badge = "Low Traffic"
+                lost_rev_str = "₹0"
             else:
                 lost_rev = int(lost_rev_base * 0.8)
-                insight = f"Customers exit before reaching back displays."
-                badge = "Low Reach"
-                lost_rev_str = f"₹{lost_rev:,} (Low aisle reach)"
+                insight = "Customers browsing aisle displays."
+                badge = "Active Aisle"
+                lost_rev_str = f"₹{lost_rev:,}"
 
         analyzed_zones.append({
             "id": zid,
@@ -236,7 +363,7 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
             "category": category,
             "left": left_str,
             "top": top_str,
-            "traffic": f"{visitors_in_zone:,} visitors",
+            "traffic": f"{visitors_in_zone} visitor{'s' if visitors_in_zone != 1 else ''}",
             "traffic_count": visitors_in_zone,
             "dwell": f"{avg_dwell_min} min",
             "dwell_minutes": avg_dwell_min,
@@ -251,9 +378,9 @@ def compute_zone_analytics_from_trajectories(documents, zones=None, blueprint_si
         "total_visitors": total_store_visitors,
         "zones": analyzed_zones,
         "heuristics": {
-            "top_performing": next((z["name"] for z in analyzed_zones if z["category"] == "POS"), "Zone B"),
+            "top_performing": next((z["name"] for z in analyzed_zones if z["category"] in ("POS", "CHECKOUT")), analyzed_zones[0]["name"] if analyzed_zones else "Zone B"),
             "highest_dwell": max(analyzed_zones, key=lambda z: z["dwell_minutes"])["name"] if analyzed_zones else "Zone A",
-            "primary_corridor": next((z["name"] for z in analyzed_zones if z["category"] == "Entrance"), "Zone D")
+            "primary_corridor": next((z["name"] for z in analyzed_zones if z["category"] in ("Entrance", "ENTRANCE")), analyzed_zones[-1]["name"] if analyzed_zones else "Zone D")
         }
     }
 
