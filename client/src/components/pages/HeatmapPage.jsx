@@ -15,6 +15,7 @@ import {
   ExternalLink,
   ArrowRight,
   FolderOpen,
+  Users,
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -121,6 +122,131 @@ export default function HeatmapPage({ onNavigate, showToast }) {
 
   const blueprintOverlaySrc = `${API_BASE_URL}/api/heatmap/image/${displayType === "raw" ? "blueprint_heatmap" : "blueprint_overlay"}${cacheBuster}`;
   const videoOverlaySrc = `${API_BASE_URL}/api/heatmap/image/${displayType === "raw" ? "video_heatmap" : "video_overlay"}${cacheBuster}`;
+
+  // Extract accurate numerical visitor count from any zone format
+  const getZoneVisitorCount = (zone) => {
+    if (typeof zone?.traffic_count === "number") return zone.traffic_count;
+    if (typeof zone?.visitors === "number") return zone.visitors;
+    if (typeof zone?.footfall_count === "number") return zone.footfall_count;
+    if (typeof zone?.count === "number") return zone.count;
+    if (typeof zone?.traffic === "number") return zone.traffic;
+    if (typeof zone?.traffic === "string") {
+      const match = zone.traffic.match(/(\d+)/);
+      if (match) return parseInt(match[1], 10);
+    }
+    return 0;
+  };
+
+  // Compute clean, non-overlapping coordinates and tooltip alignment
+  const getZonePosition = (zone, index, total) => {
+    let leftNum = parseFloat(zone?.left);
+    let topNum = parseFloat(zone?.top);
+    if (isNaN(leftNum) || isNaN(topNum)) {
+      leftNum = 50;
+      topNum = 50;
+    }
+    // Prevent direct overlapping if multiple zones have default 50%/50% positions
+    if (Math.abs(leftNum - 50) < 1 && Math.abs(topNum - 50) < 1 && total > 1) {
+      const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+      const radius = total <= 2 ? 18 : 22;
+      leftNum = Math.min(85, Math.max(15, 50 + radius * Math.cos(angle)));
+      topNum = Math.min(85, Math.max(15, 50 + radius * Math.sin(angle)));
+    }
+    return {
+      left: `${leftNum}%`,
+      top: `${topNum}%`,
+      isNearTop: topNum < 28,
+      isNearLeft: leftNum < 25,
+      isNearRight: leftNum > 75,
+    };
+  };
+
+  // Render interactive zone marker with visible visitor count and accurate hover tooltip
+  const renderZoneMarker = (zone, index, total, isSplitView = false) => {
+    const count = getZoneVisitorCount(zone);
+    const pos = getZonePosition(zone, index, total);
+    const tooltipV = pos.isNearTop ? "top-full mt-2" : "bottom-full mb-2";
+    const tooltipH = pos.isNearLeft
+      ? "left-0"
+      : pos.isNearRight
+        ? "right-0"
+        : "left-1/2 -translate-x-1/2";
+
+    return (
+      <div
+        key={zone.id || `zone-${index}`}
+        style={{ left: pos.left, top: pos.top }}
+        onClick={() => setActiveZoneModal(zone)}
+        className="absolute -translate-x-1/2 -translate-y-1/2 z-30 cursor-pointer group select-none"
+      >
+        <div className="relative flex flex-col items-center">
+          {/* Defined Zone Name Chip on Blueprint */}
+          <div className="mb-1 px-2 py-0.5 rounded-full bg-slate-900/90 text-white text-[10px] font-bold shadow-md border border-slate-700/80 backdrop-blur-xs whitespace-nowrap group-hover:scale-105 group-hover:border-emerald-500/70 transition-all flex items-center gap-1">
+            <MapPin size={9} className="text-emerald-400 shrink-0" />
+            <span className="max-w-[120px] truncate">{zone.name}</span>
+          </div>
+
+          {/* Marker Circle displaying accurate visitor count */}
+          <div className="relative flex items-center justify-center">
+            <span className="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-[#08764e] opacity-40 pointer-events-none" />
+            <div
+              className={`min-w-8 h-8 px-2 rounded-full bg-[#08764e] text-white flex items-center justify-center gap-1 font-extrabold text-xs shadow-lg border-2 border-white group-hover:scale-110 group-hover:bg-[#065e3e] group-hover:shadow-emerald-950/50 transition-all ${
+                isSplitView ? "min-w-7 h-7 text-[11px] px-1.5" : ""
+              }`}
+              title={`${zone.name}: ${count} visitors`}
+            >
+              <Users size={11} className="text-emerald-200 shrink-0" />
+              <span>{count}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Hover Tooltip displaying Zone Name and Visitor Count accurately */}
+        <div
+          className={`absolute ${tooltipV} ${tooltipH} hidden group-hover:flex flex-col bg-slate-950/95 text-white p-3 rounded-xl shadow-2xl border border-slate-700/90 text-xs w-56 z-50 pointer-events-none backdrop-blur-md transition-all animate-fadeIn`}
+        >
+          {/* Header: Zone Name & Category Badge */}
+          <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-slate-800">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <MapPin size={13} className="text-emerald-400 shrink-0" />
+              <span className="font-bold text-white text-xs truncate">
+                {zone.name}
+              </span>
+            </div>
+            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/50 shrink-0">
+              {zone.badge || zone.category || "Zone"}
+            </span>
+          </div>
+
+          {/* Body: Visitor Count & Dwell Time */}
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between bg-slate-900/95 px-2.5 py-1.5 rounded-lg border border-slate-800">
+              <span className="text-slate-400 text-[11px] flex items-center gap-1.5 font-medium">
+                <Users size={12} className="text-emerald-400" />
+                Visitor Count:
+              </span>
+              <span className="font-extrabold text-emerald-400 text-xs">
+                {count} {count === 1 ? "visitor" : "visitors"}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between px-1 text-[11px] text-slate-300">
+              <span className="text-slate-400">Avg Dwell:</span>
+              <span className="font-medium text-slate-200">
+                {zone.dwell || `${zone.dwell_minutes || 0} min`}
+              </span>
+            </div>
+          </div>
+
+          {/* Footer cue */}
+          <div className="mt-2 pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
+            <span>Click to inspect details</span>
+            <ArrowRight size={10} className="text-emerald-400" />
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // If loading, show elegant skeleton loader
   if (isLoading) {
@@ -360,7 +486,12 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                 onChange={(e) => setShowZones(e.target.checked)}
                 className="rounded text-[#08764e] focus:ring-[#08764e]"
               />
-              <span>Show Zone Markers (A, B, C, D)</span>
+              <span>
+                Show Zone Markers{" "}
+                {zonesList.length > 0
+                  ? `(${zonesList.length} defined)`
+                  : ""}
+              </span>
             </label>
 
             {/* Display Type: Overlay vs Raw Heatmap */}
@@ -390,20 +521,6 @@ export default function HeatmapPage({ onNavigate, showToast }) {
 
           {/* Right toolbar: Time Slot & Heatmap Legend */}
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2 text-gray-600 font-medium">
-              <span>Time Slot:</span>
-              <select
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
-                className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#08764e]"
-              >
-                <option value="10:00">10:00 AM (Morning Opening)</option>
-                <option value="14:00">02:00 PM (Afternoon)</option>
-                <option value="18:30">06:30 PM (Evening Peak)</option>
-                <option value="all">All Day Cumulative</option>
-              </select>
-            </div>
-
             {/* Heatmap Activity Legend */}
             <div className="flex items-center gap-2">
               <span className="text-gray-500 font-medium">Activity:</span>
@@ -481,21 +598,9 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                     />
                     {/* Interactive Zone Pins in Blueprint */}
                     {showZones &&
-                      zonesList.map((zone) => (
-                        <div
-                          key={zone.id}
-                          style={{ left: zone.left, top: zone.top }}
-                          onClick={() => setActiveZoneModal(zone)}
-                          className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                        >
-                          <div className="relative flex items-center justify-center">
-                            <span className="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-[#08764e] opacity-40" />
-                            <div className="w-6 h-6 rounded-full bg-[#08764e] text-white flex items-center justify-center font-bold text-[10px] shadow-md border-2 border-white group-hover:scale-110 transition-transform">
-                              {zone.id.split("-")[1]?.toUpperCase() || "Z"}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                      zonesList.map((zone, idx) =>
+                        renderZoneMarker(zone, idx, zonesList.length, true)
+                      )}
                   </>
                 )}
               </div>
@@ -526,35 +631,9 @@ export default function HeatmapPage({ onNavigate, showToast }) {
 
                   {/* Interactive Zone Markers */}
                   {showZones &&
-                    zonesList.map((zone) => (
-                      <div
-                        key={zone.id}
-                        style={{ left: zone.left, top: zone.top }}
-                        onClick={() => setActiveZoneModal(zone)}
-                        className="absolute -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
-                      >
-                        <div className="relative flex items-center justify-center">
-                          <span className="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-[#08764e] opacity-40" />
-                          <div className="w-8 h-8 rounded-full bg-[#08764e] text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white group-hover:scale-110 transition-transform">
-                            {zone.id.split("-")[1]?.toUpperCase() || "Z"}
-                          </div>
-                        </div>
-
-                        {/* Floating Tooltip */}
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-900 text-white p-2.5 rounded-xl shadow-xl text-xs w-52 z-30 pointer-events-none">
-                          <span className="font-bold text-emerald-400">
-                            {zone.name}
-                          </span>
-                          <div className="mt-1 flex justify-between text-[11px] text-slate-300">
-                            <span>Footfall: {zone.traffic}</span>
-                            <span>Dwell: {zone.dwell}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-400 mt-1 leading-tight">
-                            Click to inspect zone analytics
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                    zonesList.map((zone, idx) =>
+                      renderZoneMarker(zone, idx, zonesList.length, false)
+                    )}
                 </>
               )
             ) : imgErrorVideo ? (
@@ -664,25 +743,6 @@ export default function HeatmapPage({ onNavigate, showToast }) {
                     <strong>{zone.dwell}</strong>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <p
-                  className={`text-xs font-semibold ${
-                    isPos
-                      ? "text-[#08764e]"
-                      : isHighDwell
-                        ? "text-red-500"
-                        : isTransit
-                          ? "text-blue-500"
-                          : "text-amber-600"
-                  }`}
-                >
-                  {zone.lost_revenue || zone.insight}
-                </p>
-                <span className="text-[10px] text-gray-400 mt-1 block">
-                  Click to inspect zone analytics →
-                </span>
               </div>
             </div>
           );
