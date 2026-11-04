@@ -22,19 +22,23 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-// import { getDashboardOverview } from "../services/api";
+import { getDashboardOverview } from "../../services/api.js";
 
 export default function Dashboard({ onNavigate, showToast }) {
   const [data, setData] = useState(null);
   const [timeFilter, setTimeFilter] = useState("today");
 
-  //   useEffect(() => {
-  //     async function loadData() {
-  //       const overview = await getDashboardOverview();
-  //       setData(overview);
-  //     }
-  //     loadData();
-  //   }, []);
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const overview = await getDashboardOverview();
+        setData(overview);
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err);
+      }
+    }
+    loadData();
+  }, []);
 
   if (!data) {
     return (

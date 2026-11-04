@@ -203,3 +203,66 @@ def compute_layout_efficiency_score(conversion_results, zone_analytics):
         },
         "grade": "A+" if composite_score >= 85 else "A" if composite_score >= 75 else "B" if composite_score >= 60 else "C"
     }
+
+
+if __name__ == "__main__":
+    import json
+    import argparse
+
+    parser = argparse.ArgumentParser(description="HeatVision AI Layout & Lost Sales Engine (Milestone 7)")
+    parser.add_argument("--pos", default="data/synthetic_pos.csv", help="Path to POS transaction CSV")
+    parser.add_argument("--analytics", default=None, help="Path to zone_analytics.json")
+    args = parser.parse_args()
+
+    # Determine zone analytics
+    zone_analytics = None
+    if args.analytics and os.path.exists(args.analytics):
+        with open(args.analytics, "r", encoding="utf-8") as f:
+            zone_analytics = json.load(f)
+    else:
+        # Default sample analytics for standalone demonstration
+        zone_analytics = {
+            "total_visitors": 450,
+            "zones": [
+                {"zone_id": "entrance", "name": "Entrance", "category": "General", "footfall_count": 450, "avg_dwell_seconds": 22.0, "traffic_share_pct": 32.0},
+                {"zone_id": "promo", "name": "Promo Aisle", "category": "Promotional", "footfall_count": 180, "avg_dwell_seconds": 35.0, "traffic_share_pct": 14.0},
+                {"zone_id": "apparel", "name": "Apparel", "category": "Apparel", "footfall_count": 290, "avg_dwell_seconds": 88.0, "traffic_share_pct": 21.0},
+                {"zone_id": "electronics", "name": "Electronics", "category": "Electronics", "footfall_count": 210, "avg_dwell_seconds": 64.0, "traffic_share_pct": 16.0},
+                {"zone_id": "grocery", "name": "Grocery", "category": "Grocery", "footfall_count": 160, "avg_dwell_seconds": 42.0, "traffic_share_pct": 11.0},
+                {"zone_id": "checkout", "name": "Checkout", "category": "POS", "footfall_count": 190, "avg_dwell_seconds": 95.0, "traffic_share_pct": 14.0}
+            ]
+        }
+
+    print("\n--- HEATVISION AI STORE LAYOUT & LOST SALES REPORT (M7) ---")
+    pos_file = args.pos
+    if not os.path.exists(pos_file):
+        print(f"[warning] POS CSV not found at {pos_file}. Generating temporary dataset...")
+        from services.pos_generator import generate_synthetic_pos_csv
+        generate_synthetic_pos_csv(pos_file, num_transactions=150)
+
+    zone_sales = parse_pos_csv(pos_file)
+    print(f"Parsed {len(zone_sales)} store zones from POS dataset.")
+
+    # Issue #36: Conversion
+    conversions = compute_sales_conversion(zone_analytics, zone_sales)
+    print("\n[Issue #36] Zone Sales Conversion Summary:")
+    for c in conversions:
+        print(f"  - {c['name']:<15} | Footfall: {c['footfall_count']:<4} | Tx: {c['transactions']:<3} | Conv: {c['conversion_rate_pct']:>5}% | Rev: ${c['total_revenue']}")
+
+    # Issue #37: Lost Sales
+    lost_sales = detect_lost_sales(conversions)
+    print(f"\n[Issue #37] Lost Sales Alerts Detected: {len(lost_sales)}")
+    for ls in lost_sales:
+        print(f"  - [ALERT] {ls['name']}: Potential lost revenue ${ls['estimated_lost_revenue_potential']} (Actual: {ls['actual_conversion_rate']}%)")
+
+    # Issue #38: Recommendations
+    recommendations = generate_layout_recommendations(conversions, lost_sales)
+    print(f"\n[Issue #38] Rule-Based AI Recommendations ({len(recommendations)}):")
+    for r in recommendations:
+        print(f"  - [{r['priority']}] {r['type']}: {r['action']}")
+
+    # Issue #39: Composite Score
+    score = compute_layout_efficiency_score(conversions, zone_analytics)
+    print(f"\n[Issue #39] Composite Store Floorplan Layout Efficiency Score: {score['composite_efficiency_score']}/100 (Grade: {score['grade']})")
+    print(f"  Sub-Scores: {json.dumps(score['sub_scores'], indent=2)}")
+    print("----------------------------------------------------------\n")

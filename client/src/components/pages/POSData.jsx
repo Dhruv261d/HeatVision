@@ -8,29 +8,39 @@ import {
   Eye,
   Table as TableIcon,
   X,
+  Sparkles,
+  Download,
 } from "lucide-react";
-// import {
-//   getPOSUploads,
-//   uploadPOSFile,
-//   getSamplePOSRecords,
-// } from "../services/api";
+import {
+  getPOSUploads,
+  uploadPOSFile,
+  getSamplePOSRecords,
+  generateSyntheticPOS,
+  getSampleCsvDownloadUrl,
+} from "../../services/api.js";
 
 export default function PosData({ showToast }) {
   const [uploads, setUploads] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [sampleRecords, setSampleRecords] = useState([]);
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    async function loadData() {
+  const loadData = async () => {
+    try {
       const data = await getPOSUploads();
       setUploads(data);
       const records = await getSamplePOSRecords();
       setSampleRecords(records);
+    } catch (err) {
+      console.warn("Could not load initial POS records:", err);
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -66,13 +76,13 @@ export default function PosData({ showToast }) {
     );
 
     if (!isExtensionValid) {
-      showToast("Please upload a valid CSV or XLSX file.", "error");
+      showToast?.("Please upload a valid CSV or XLSX file.", "error");
       return;
     }
 
-    // Validate size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("File size exceeds 10MB limit.", "error");
+    // Validate size (15MB max)
+    if (file.size > 15 * 1024 * 1024) {
+      showToast?.("File size exceeds 15MB limit.", "error");
       return;
     }
 
@@ -86,10 +96,11 @@ export default function PosData({ showToast }) {
 
       if (result && result.file) {
         setUploads((prev) => [result.file, ...prev]);
-        showToast(`Successfully uploaded ${file.name}`, "success");
+        showToast?.(`Successfully uploaded ${file.name} (${result.count || "processed"} records)`, "success");
+        await loadData();
       }
     } catch {
-      showToast("Failed to upload POS data. Please try again.", "error");
+      showToast?.("Failed to upload POS data. Please try again.", "error");
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -99,16 +110,45 @@ export default function PosData({ showToast }) {
     }
   };
 
+  const handleGenerateSynthetic = async () => {
+    setIsGenerating(true);
+    try {
+      const res = await generateSyntheticPOS(150);
+      if (res && res.file) {
+        setUploads((prev) => [res.file, ...prev]);
+        showToast?.("Generated 150 synthetic transactions for testing!", "success");
+        await loadData();
+      }
+    } catch (err) {
+      showToast?.("Failed to generate synthetic data", "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn max-w-6xl">
       {/* Page Title & Subtitle */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-          Upload POS Data
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Upload your store's POS data for analysis
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            Upload POS Data
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Upload store cashier transaction CSVs to calculate zone conversion rates & lost sales
+          </p>
+        </div>
+
+        {/* Synthetic Generator Button (Issue #34) */}
+        <button
+          type="button"
+          disabled={isGenerating}
+          onClick={handleGenerateSynthetic}
+          className="inline-flex items-center gap-2 bg-[#f2f8f4] text-[#08764e] hover:bg-[#e4f2e9] border border-[#a1c9b3] px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer disabled:opacity-50 self-start sm:self-auto shadow-xs"
+        >
+          <Sparkles size={16} className={isGenerating ? "animate-spin" : ""} />
+          <span>{isGenerating ? "Generating Dataset..." : "Generate Synthetic POS Data"}</span>
+        </button>
       </div>
 
       {/* Top Grid: Upload Box + File Requirements */}
@@ -170,7 +210,7 @@ export default function PosData({ showToast }) {
             )}
 
             <p className="text-xs text-gray-400 mt-4">
-              Supported formats: CSV, XLSX (Max 10MB)
+              Supported formats: CSV, XLSX (Max 15MB)
             </p>
           </div>
         </div>
@@ -196,7 +236,7 @@ export default function PosData({ showToast }) {
                 <Check size={13} strokeWidth={3} />
               </div>
               <p className="text-sm text-gray-700 leading-tight">
-                Include date, time, product, quantity, price
+                Include transaction_id, timestamp, zone_id, quantity, price
               </p>
             </div>
 
@@ -205,18 +245,27 @@ export default function PosData({ showToast }) {
                 <Check size={13} strokeWidth={3} />
               </div>
               <p className="text-sm text-gray-700 leading-tight">
-                Max file size: 10MB
+                Max file size: 15MB
               </p>
             </div>
           </div>
 
-          <div className="mt-auto pt-6">
+          <div className="mt-auto pt-6 space-y-2">
+            <a
+              href={getSampleCsvDownloadUrl()}
+              download="sample_pos_template.csv"
+              className="w-full flex items-center justify-center gap-2 py-2 px-4 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition"
+            >
+              <Download size={14} />
+              <span>Download CSV Template</span>
+            </a>
+
             <button
               onClick={() => setShowPreviewModal(true)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-[#08764e] bg-[#f2f8f4] hover:bg-[#e4f2e9] border border-[#a1c9b3]/50 rounded-xl transition"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-semibold text-[#08764e] bg-[#f2f8f4] hover:bg-[#e4f2e9] border border-[#a1c9b3]/50 rounded-xl transition cursor-pointer"
             >
               <TableIcon size={14} />
-              <span>Preview Required Schema & Sample Data</span>
+              <span>Preview Required Schema & Records</span>
             </button>
           </div>
         </div>
@@ -239,6 +288,7 @@ export default function PosData({ showToast }) {
               <tr className="bg-[#f2f8f4] text-gray-600 text-xs font-semibold rounded-lg">
                 <th className="py-3 px-4 rounded-l-lg">File Name</th>
                 <th className="py-3 px-4">Uploaded On</th>
+                <th className="py-3 px-4">Records</th>
                 <th className="py-3 px-4 rounded-r-lg">Status</th>
               </tr>
             </thead>
@@ -255,16 +305,19 @@ export default function PosData({ showToast }) {
                   <td className="py-3.5 px-4 text-gray-600">
                     {upload.uploadedOn}
                   </td>
+                  <td className="py-3.5 px-4 text-gray-600 font-medium">
+                    {upload.recordsCount || upload.count || "—"} txns
+                  </td>
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-[#08764e]">
-                        {upload.progress}%
+                        {upload.progress || 100}%
                       </span>
                       <div className="flex items-center gap-1.5 text-[#08764e] font-semibold text-xs">
                         <span className="w-4 h-4 rounded bg-[#e8f5ee] flex items-center justify-center">
                           <Check size={11} strokeWidth={3} />
                         </span>
-                        <span>{upload.status}</span>
+                        <span>{upload.status || "Completed"}</span>
                       </div>
                     </div>
                   </td>
@@ -278,20 +331,19 @@ export default function PosData({ showToast }) {
       {/* Sample Schema Preview Modal */}
       {showPreviewModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-xl border border-gray-100 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
                   POS Data Schema & Sample Records
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Required columns: date, time, product, category, zone,
-                  quantity, price
+                  Required columns: transaction_id, timestamp, zone_id, product_category, item_name, quantity, total_amount
                 </p>
               </div>
               <button
                 onClick={() => setShowPreviewModal(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
                 <X size={20} />
               </button>
@@ -305,34 +357,47 @@ export default function PosData({ showToast }) {
                     <th className="p-2.5">Date</th>
                     <th className="p-2.5">Time</th>
                     <th className="p-2.5">Product</th>
+                    <th className="p-2.5">Category</th>
                     <th className="p-2.5">Zone</th>
                     <th className="p-2.5">Qty</th>
-                    <th className="p-2.5">Price (₹)</th>
+                    <th className="p-2.5">Price</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sampleRecords.map((rec) => (
-                    <tr key={rec.id} className="hover:bg-gray-50">
+                  {sampleRecords.map((rec, i) => (
+                    <tr key={rec.id || i} className="hover:bg-gray-50">
                       <td className="p-2.5 font-mono text-gray-500">
-                        {rec.id}
+                        {rec.id || rec.transactionId}
                       </td>
                       <td className="p-2.5">{rec.date}</td>
                       <td className="p-2.5">{rec.time}</td>
                       <td className="p-2.5 font-medium text-gray-900">
-                        {rec.product}
+                        {rec.product || rec.itemName}
+                      </td>
+                      <td className="p-2.5 text-gray-600">
+                        {rec.category || rec.productCategory}
                       </td>
                       <td className="p-2.5 font-semibold text-[#08764e]">
-                        {rec.zone}
+                        {rec.zone || rec.zoneName}
                       </td>
                       <td className="p-2.5">{rec.quantity}</td>
-                      <td className="p-2.5 font-bold">₹{rec.price}</td>
+                      <td className="p-2.5 font-bold">₹{rec.price || rec.totalAmount}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex justify-between items-center">
+              <a
+                href={getSampleCsvDownloadUrl()}
+                download="sample_pos_template.csv"
+                className="flex items-center gap-1.5 text-xs text-[#08764e] font-semibold hover:underline"
+              >
+                <Download size={14} />
+                <span>Download Sample CSV Template</span>
+              </a>
+
               <button
                 onClick={() => setShowPreviewModal(false)}
                 className="px-4 py-2 bg-[#08764e] text-white text-xs font-semibold rounded-lg hover:bg-[#065e3e]"

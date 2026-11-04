@@ -15,9 +15,9 @@ import videoRoutes from './routes/videoRoutes.js';
 import caligraphyRoutes from './routes/caligraphyRoutes.js';
 import blueprintRoutes from './routes/blueprintRoutes.js';
 import heatmapRoutes from './routes/heatmapRoutes.js';
+import posRoutes from './routes/posRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import { initQueueSocket, getJobStatus } from './services/queueService.js';
-
-
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -105,8 +105,8 @@ app.use('/api/calibration', caligraphyRoutes);
 app.use('/api/blueprints', blueprintRoutes);
 app.use('/api/zones', blueprintRoutes);
 app.use('/api/heatmap', heatmapRoutes);
-
-
+app.use('/api/pos', posRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
