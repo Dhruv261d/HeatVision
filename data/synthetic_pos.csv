@@ -1,0 +1,101 @@
+transaction_id,timestamp,zone_id,product_category,item_name,quantity,unit_price,total_amount
+TXN-10001,2026-10-29 06:31:27,promo,Discount,Discount Accessories,1,12.05,12.05
+TXN-10002,2026-11-01 04:09:27,entrance,Store,Store Magazines,1,9.87,9.87
+TXN-10003,2026-11-03 02:42:27,electronics,Charging,Charging Cables,2,23.8,47.6
+TXN-10004,2026-10-29 12:21:27,electronics,Accessories,Accessories,1,29.96,29.96
+TXN-10005,2026-10-29 01:18:27,entrance,Hand,Hand Sanitizers,1,7.95,7.95
+TXN-10006,2026-11-02 15:52:27,checkout,Chewing,Chewing Gum,1,2.49,2.49
+TXN-10007,2026-10-28 21:51:27,promo,Seasonal,Seasonal Promo Items,1,24.1,24.1
+TXN-10008,2026-11-02 13:11:27,apparel,Cotton,Cotton T-Shirts,2,20.5,41.0
+TXN-10009,2026-11-01 20:55:27,checkout,Impulse,Impulse Candy,1,1.89,1.89
+TXN-10010,2026-11-01 03:22:27,apparel,Denim,Denim Jeans,2,47.09,94.18
+TXN-10011,2026-10-30 08:13:27,entrance,Snacks,Snacks & Drinks,1,3.15,3.15
+TXN-10012,2026-10-29 23:29:27,electronics,Wireless,Wireless Headphones,1,81.63,81.63
+TXN-10013,2026-11-04 01:57:27,checkout,Batteries,Batteries,1,6.81,6.81
+TXN-10014,2026-10-29 21:30:27,apparel,Designer,Designer Jackets,1,130.09,130.09
+TXN-10015,2026-11-01 20:18:27,entrance,Hand,Hand Sanitizers,2,7.58,15.16
+TXN-10016,2026-10-29 18:05:27,electronics,Bluetooth,Bluetooth Speakers,1,84.07,84.07
+TXN-10017,2026-11-04 12:05:27,grocery,Gourmet,Gourmet Coffee,1,10.64,10.64
+TXN-10018,2026-10-28 20:11:27,entrance,Umbrellas,Umbrellas,2,15.07,30.14
+TXN-10019,2026-10-30 17:05:27,grocery,Gourmet,Gourmet Coffee,2,15.32,30.64
+TXN-10020,2026-10-29 19:42:27,apparel,Footwear,Footwear,1,127.93,127.93
+TXN-10021,2026-10-29 19:21:27,entrance,Umbrellas,Umbrellas,1,18.99,18.99
+TXN-10022,2026-11-02 14:29:27,promo,Discount,Discount Accessories,1,11.86,11.86
+TXN-10023,2026-10-31 04:32:27,checkout,Gift,Gift Cards,2,91.0,182.0
+TXN-10024,2026-11-01 20:08:27,promo,Seasonal,Seasonal Promo Items,1,36.95,36.95
+TXN-10025,2026-11-03 04:19:27,entrance,Store,Store Magazines,1,8.85,8.85
+TXN-10026,2026-10-30 20:29:27,grocery,Gourmet,Gourmet Coffee,1,12.69,12.69
+TXN-10027,2026-10-29 22:04:27,grocery,Organic,Organic Cereals,1,8.0,8.0
+TXN-10028,2026-11-02 03:41:27,electronics,Smartphones,Smartphones,1,920.61,920.61
+TXN-10029,2026-11-02 06:42:27,apparel,Silk,Silk Blend Scarf,1,24.9,24.9
+TXN-10030,2026-11-03 07:25:27,entrance,Hand,Hand Sanitizers,1,7.01,7.01
+TXN-10031,2026-11-01 03:36:27,electronics,Wireless,Wireless Headphones,3,106.85,320.55
+TXN-10032,2026-11-01 11:42:27,checkout,Chewing,Chewing Gum,1,1.31,1.31
+TXN-10033,2026-10-31 18:15:27,electronics,Smartphones,Smartphones,2,496.29,992.58
+TXN-10034,2026-11-02 18:31:27,electronics,Charging,Charging Cables,1,17.07,17.07
+TXN-10035,2026-10-29 04:51:27,electronics,Bluetooth,Bluetooth Speakers,2,57.43,114.86
+TXN-10036,2026-11-01 12:29:27,checkout,Gift,Gift Cards,1,99.58,99.58
+TXN-10037,2026-11-02 19:53:27,grocery,Organic,Organic Cereals,2,5.39,10.78
+TXN-10038,2026-10-31 05:51:27,apparel,Silk,Silk Blend Scarf,1,32.82,32.82
+TXN-10039,2026-11-01 07:24:27,checkout,Impulse,Impulse Candy,1,2.41,2.41
+TXN-10040,2026-11-04 03:16:27,apparel,Silk,Silk Blend Scarf,2,36.22,72.44
+TXN-10041,2026-10-31 00:15:27,apparel,Cotton,Cotton T-Shirts,1,31.46,31.46
+TXN-10042,2026-11-04 08:11:27,electronics,Wireless,Wireless Headphones,1,115.54,115.54
+TXN-10043,2026-11-02 12:37:27,entrance,Hand,Hand Sanitizers,3,7.33,21.99
+TXN-10044,2026-11-04 07:09:27,entrance,Snacks,Snacks & Drinks,2,4.69,9.38
+TXN-10045,2026-10-28 19:32:27,checkout,Batteries,Batteries,2,9.84,19.68
+TXN-10046,2026-11-01 16:06:27,entrance,Umbrellas,Umbrellas,1,23.74,23.74
+TXN-10047,2026-11-04 02:52:27,entrance,Store,Store Magazines,1,11.25,11.25
+TXN-10048,2026-11-03 01:10:27,apparel,Cotton,Cotton T-Shirts,1,24.54,24.54
+TXN-10049,2026-10-31 20:54:27,grocery,Organic,Organic Cereals,2,8.78,17.56
+TXN-10050,2026-10-29 01:36:27,apparel,Denim,Denim Jeans,1,75.34,75.34
+TXN-10051,2026-10-31 12:48:27,electronics,Accessories,Accessories,1,22.98,22.98
+TXN-10052,2026-10-29 11:17:27,grocery,Snack,Snack Bars,1,5.17,5.17
+TXN-10053,2026-11-01 18:45:27,promo,Clearance,Clearance Apparel,1,14.39,14.39
+TXN-10054,2026-11-01 18:42:27,entrance,Hand,Hand Sanitizers,1,7.18,7.18
+TXN-10055,2026-10-31 12:32:27,apparel,Silk,Silk Blend Scarf,1,35.15,35.15
+TXN-10056,2026-10-31 08:03:27,electronics,Accessories,Accessories,1,35.04,35.04
+TXN-10057,2026-10-30 22:48:27,electronics,Bluetooth,Bluetooth Speakers,1,78.31,78.31
+TXN-10058,2026-11-02 06:17:27,grocery,Organic,Organic Cereals,1,5.91,5.91
+TXN-10059,2026-11-04 02:03:27,electronics,Smartphones,Smartphones,1,620.59,620.59
+TXN-10060,2026-10-31 14:02:27,grocery,Snack,Snack Bars,1,5.18,5.18
+TXN-10061,2026-11-03 11:54:27,promo,Discount,Discount Accessories,1,17.0,17.0
+TXN-10062,2026-10-31 09:08:27,grocery,Organic,Organic Cereals,1,5.98,5.98
+TXN-10063,2026-10-28 21:57:27,promo,Seasonal,Seasonal Promo Items,1,37.51,37.51
+TXN-10064,2026-11-02 14:11:27,entrance,Umbrellas,Umbrellas,1,15.18,15.18
+TXN-10065,2026-10-31 16:06:27,apparel,Designer,Designer Jackets,1,130.37,130.37
+TXN-10066,2026-10-30 15:12:27,promo,Seasonal,Seasonal Promo Items,1,17.63,17.63
+TXN-10067,2026-11-03 00:08:27,promo,Seasonal,Seasonal Promo Items,1,15.82,15.82
+TXN-10068,2026-10-31 09:58:27,grocery,Gourmet,Gourmet Coffee,4,12.37,49.48
+TXN-10069,2026-10-29 07:19:27,apparel,Footwear,Footwear,1,93.73,93.73
+TXN-10070,2026-11-04 16:23:27,checkout,Gift,Gift Cards,1,27.18,27.18
+TXN-10071,2026-10-31 13:36:27,checkout,Gift,Gift Cards,2,31.44,62.88
+TXN-10072,2026-11-04 12:31:27,checkout,Impulse,Impulse Candy,1,2.81,2.81
+TXN-10073,2026-10-30 14:51:27,promo,Discount,Discount Accessories,3,17.23,51.69
+TXN-10074,2026-11-02 21:49:27,apparel,Footwear,Footwear,1,98.47,98.47
+TXN-10075,2026-10-29 21:16:27,checkout,Batteries,Batteries,3,6.25,18.75
+TXN-10076,2026-10-29 07:15:27,promo,Seasonal,Seasonal Promo Items,2,43.15,86.3
+TXN-10077,2026-11-01 12:20:27,entrance,Umbrellas,Umbrellas,1,24.79,24.79
+TXN-10078,2026-11-03 19:45:27,checkout,Chewing,Chewing Gum,1,2.49,2.49
+TXN-10079,2026-10-31 22:04:27,apparel,Cotton,Cotton T-Shirts,1,29.92,29.92
+TXN-10080,2026-10-31 21:01:27,grocery,Snack,Snack Bars,1,2.96,2.96
+TXN-10081,2026-11-04 02:57:27,apparel,Designer,Designer Jackets,1,134.11,134.11
+TXN-10082,2026-10-31 21:22:27,electronics,Bluetooth,Bluetooth Speakers,2,139.45,278.9
+TXN-10083,2026-11-02 07:43:27,apparel,Denim,Denim Jeans,3,85.83,257.49
+TXN-10084,2026-10-30 20:18:27,grocery,Fresh,Fresh Milk,1,3.99,3.99
+TXN-10085,2026-11-02 11:29:27,entrance,Snacks,Snacks & Drinks,1,3.3,3.3
+TXN-10086,2026-10-31 05:43:27,apparel,Denim,Denim Jeans,1,47.35,47.35
+TXN-10087,2026-11-02 09:27:27,checkout,Chewing,Chewing Gum,1,2.01,2.01
+TXN-10088,2026-10-31 15:46:27,checkout,Batteries,Batteries,1,5.43,5.43
+TXN-10089,2026-10-30 04:42:27,promo,Discount,Discount Accessories,2,18.87,37.74
+TXN-10090,2026-11-02 15:09:27,entrance,Snacks,Snacks & Drinks,2,3.12,6.24
+TXN-10091,2026-11-02 03:59:27,grocery,Artisan,Artisan Bread,2,5.8,11.6
+TXN-10092,2026-11-03 06:20:27,checkout,Chewing,Chewing Gum,1,1.04,1.04
+TXN-10093,2026-11-04 12:02:27,electronics,Accessories,Accessories,2,18.97,37.94
+TXN-10094,2026-10-29 02:53:27,entrance,Snacks,Snacks & Drinks,1,3.91,3.91
+TXN-10095,2026-11-01 07:28:27,promo,Discount,Discount Accessories,2,19.83,39.66
+TXN-10096,2026-10-28 19:14:27,entrance,Snacks,Snacks & Drinks,1,4.04,4.04
+TXN-10097,2026-10-30 11:52:27,grocery,Artisan,Artisan Bread,3,7.11,21.33
+TXN-10098,2026-11-02 11:30:27,electronics,Bluetooth,Bluetooth Speakers,1,68.13,68.13
+TXN-10099,2026-11-01 12:55:27,promo,Featured,Featured Bundles,1,37.35,37.35
+TXN-10100,2026-10-30 13:39:27,promo,Seasonal,Seasonal Promo Items,2,17.72,35.44

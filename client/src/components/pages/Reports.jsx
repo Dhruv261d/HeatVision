@@ -8,7 +8,8 @@ import {
   FileSpreadsheet,
 } from "lucide-react";
 import { MOCK_REPORTS_CONFIG } from "../../mock/mockData.js";
-// import { generateReport } from "../services/api";
+import { generateReport } from "../../services/api.js";
+import { generatePdfBlob, generateCsvBlob } from "../../utils/pdfGenerator.js";
 
 export default function Reports({ showToast }) {
   const [activeTab, setActiveTab] = useState("analytics"); // 'analytics' | 'sales'
@@ -27,35 +28,48 @@ export default function Reports({ showToast }) {
         format,
       });
 
-      // Simulate download
+      let fileBlob;
+      const fileName = `HeatVision_${activeTab === "analytics" ? "Analytics" : "Sales"}_Report.${format.toLowerCase()}`;
+
+      if (format === "PDF") {
+        fileBlob = generatePdfBlob({
+          reportType: activeTab === "analytics" ? "Analytics" : "Sales Conversion",
+          dateRange,
+          metrics: [
+            { label: "Total Store Footfall", value: "1,248 visitors (+14.2%)" },
+            { label: "Average Shopper Dwell", value: "3.8 minutes" },
+            { label: "Overall Sales Conversion", value: "24.8% (+3.2% vs benchmark)" },
+            { label: "Unrealized Lost Opportunity", value: "INR 126,300 (3 high-dwell friction zones)" },
+          ],
+          checklist:
+            activeTab === "analytics"
+              ? MOCK_REPORTS_CONFIG.checklist
+              : MOCK_REPORTS_CONFIG.salesChecklist,
+        });
+      } else {
+        fileBlob = generateCsvBlob({
+          reportType: activeTab,
+          dateRange,
+        });
+      }
+
+      // Trigger standard browser download
       const element = document.createElement("a");
-      const file = new Blob(
-        [
-          `HeatVision ${activeTab.toUpperCase()} Report\n` +
-            `Date Range: ${dateRange}\n` +
-            `Generated: ${new Date().toLocaleString()}\n` +
-            `Format: ${format}\n\n` +
-            `Summary:\n` +
-            `- Total Visitors: 1,248\n` +
-            `- Peak Conversion: 35% (Zone B - Display/Checkout)\n` +
-            `- High-Dwell Low-Conversion Opportunity: Zone A\n` +
-            `- Estimated Recoverable Revenue: ₹26,300\n`,
-        ],
-        { type: format === "PDF" ? "application/pdf" : "text/csv" },
-      );
-      element.href = URL.createObjectURL(file);
-      element.download =
-        res.reportName || `HeatVision_Report.${format.toLowerCase()}`;
+      const url = URL.createObjectURL(fileBlob);
+      element.href = url;
+      element.download = fileName;
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      showToast(
-        `Generated and downloaded ${res.reportName || "report"}`,
+      showToast?.(
+        `Generated and downloaded ${fileName}`,
         "success",
       );
-    } catch {
-      showToast("Failed to generate report. Please try again.", "error");
+    } catch (err) {
+      console.error("Report generation error:", err);
+      showToast?.("Failed to generate report. Please try again.", "error");
     } finally {
       setIsGenerating(false);
     }
@@ -201,7 +215,7 @@ export default function Reports({ showToast }) {
                 className="w-full max-w-sm bg-[#08764e] hover:bg-[#065e3e] active:scale-98 text-white font-medium py-3.5 px-6 rounded-xl flex items-center justify-between transition shadow-xs disabled:opacity-60 cursor-pointer"
               >
                 <span className="text-sm font-semibold">
-                  {isGenerating ? "Generating Report..." : "Generate Report"}
+                  {isGenerating ? `Generating ${format} Report...` : `Generate ${format} Report`}
                 </span>
                 {isGenerating ? (
                   <Loader2 size={18} className="animate-spin" />
